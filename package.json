@@ -1,6 +1,6 @@
 {
   "name": "chronos-desktop",
-  "version": "1.2.9",
+  "version": "1.2.10",
   "description": "Chronos — Electron desktop (context menu, multi-select, i18n persistence, theming tokens, installer)",
   "main": "main.js",
   "private": true,

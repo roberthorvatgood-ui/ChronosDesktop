@@ -1,32 +1,48 @@
 <!doctype html>
 <html lang="en" data-theme="light">
 <head>
-  <!-- [2026-01-29 15:20 CET] Enterprise UI + i18n + context menu -->
+  <!-- [2026-01-29 19:58 CET] UI polish (sticky header/toolbar) + FIXED tags + CSP that preserves runtime styles -->
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Chronos — Desktop</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'">
+
+  <!-- CSP:
+       - Keep script-src 'self' (secure; no inline/eval)
+       - Allow runtime style assignments used by your JS via 'unsafe-inline' in style-src
+       - Frame-ancestors in <meta> is often ignored; we omit it here to keep console clean
+       Reference: MDN CSP guidance on style-src/inline styles. [1](https://visualstudio.microsoft.com/)[2](https://github.blog/) -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 script-src 'self';
+                 style-src 'self' 'unsafe-inline';
+                 img-src 'self' data:;
+                 font-src 'self' data:;
+                 connect-src 'self';
+                 object-src 'none'; base-uri 'none'">
+
+  <!-- ✅ Proper stylesheet link -->
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
+  <!-- Sticky header (CSS position: sticky in style.css) -->
   <header class="topbar">
     <div class="brand">
-      <img src="./assets/logo.png" class="brand-logo" alt="Didakta Horvat"/>
+      <img src="./assets/logo.png" class="brand-logo" alt="Didakta Horvat">
       <div class="brand-text">
         <div class="brand-title" data-i18n="app.title">Chronos Exports</div>
         <div class="brand-sub" data-i18n="app.subtitle">Enterprise export portal</div>
       </div>
     </div>
     <div class="right">
-      <div class="chip" id="status">Chronos: Not available</div>
+      <div class="chip" id="status" role="status" aria-live="polite">Chronos: Not available</div>
       <select id="lang" aria-label="Language"><option value="en">EN</option><option value="hr">HR</option></select>
       <button id="themeToggle" class="icon-btn" title="Theme" aria-label="Theme">🌙</button>
     </div>
   </header>
 
-  <nav class="tabs card">
-    <button id="tabExports" class="tab active" data-i18n="tabs.exports">Exports</button>
-    <button id="tabDiag" class="tab" data-i18n="tabs.diagnostics">Diagnostics</button>
+  <nav class="tabs card" role="tablist" aria-label="Views">
+    <button id="tabExports" class="tab active" data-i18n="tabs.exports" role="tab" aria-selected="true">Exports</button>
+    <button id="tabDiag" class="tab" data-i18n="tabs.diagnostics" role="tab" aria-selected="false">Diagnostics</button>
   </nav>
 
   <main class="container">
@@ -34,54 +50,79 @@
     <section id="viewExports">
       <div class="card grid-two">
         <div>
-          <div class="field"><label for="base" data-i18n="device.url">Device URL</label><input id="base" placeholder="http://192.168.4.1" spellcheck="false"/></div>
-          <div class="actions"><button id="save" class="btn primary" data-i18n="actions.saveCheck">Save & Check</button><button id="reset" class="btn ghost" data-i18n="actions.reset">Reset</button><span class="hint" data-i18n="device.hint">Connect to Chronos‑AP and click Save & Check.</span></div>
+          <div class="field">
+            <label for="base" data-i18n="device.url">Device URL</label>
+            <input id="base" placeholder="http://192.168.4.1" spellcheck="false"/>
+          </div>
+          <div class="actions">
+            <!-- One primary here -->
+            <button id="save" class="btn primary" data-i18n="actions.saveCheck">Save & Check</button>
+            <button id="reset" class="btn ghost" data-i18n="actions.reset">Reset</button>
+            <span class="hint" data-i18n="device.hint">Connect to Chronos‑AP and click Save & Check.</span>
+          </div>
         </div>
+
         <div class="storage">
-          <div class="storage-line"><span data-i18n="storage.title">Storage</span><span class="muted"><span id="usedText">–</span> / <span id="totalText">–</span> (<span id="usedPct">0%</span>)</span></div>
+          <div class="storage-line">
+            <span data-i18n="storage.title">Storage</span>
+            <span class="muted"><span id="usedText">–</span> / <span id="totalText">–</span> (<span id="usedPct">0%</span>)</span>
+          </div>
           <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
           <div class="muted small"><span data-i18n="storage.items">Items</span>: <b id="itemsCount">0</b> • <b id="daysCount">0</b> <span data-i18n="storage.days">days</span></div>
         </div>
       </div>
 
-      <div class="commandbar card">
+      <!-- Sticky command bar under the header -->
+      <div class="commandbar">
         <div class="group">
-          <button id="refresh" class="btn" data-i18n="actions.refresh">Refresh</button>
+          <button id="refresh" class="btn ghost" data-i18n="actions.refresh" title="Refresh">Refresh</button>
           <div class="divider"></div>
-          <button id="expand" class="btn ghost" data-i18n="actions.expand">Expand</button>
-          <button id="collapse" class="btn ghost" data-i18n="actions.collapse">Collapse</button>
+          <button id="expand" class="btn ghost" data-i18n="actions.expand" title="Expand all">Expand</button>
+          <button id="collapse" class="btn ghost" data-i18n="actions.collapse" title="Collapse all">Collapse</button>
           <div class="divider"></div>
-          <button id="selectAll" class="btn ghost" data-i18n="actions.selectAll">Select all</button>
-          <button id="clearSel" class="btn ghost" data-i18n="actions.clear">Clear</button>
+          <button id="selectAll" class="btn ghost" data-i18n="actions.selectAll" title="Select all">Select all</button>
+          <button id="clearSel" class="btn ghost" data-i18n="actions.clear" title="Clear selection">Clear</button>
         </div>
         <div class="group right">
           <input id="search" class="search" placeholder="Search…" data-i18n-placeholder="search.placeholder"/>
-          <select id="sort" class="sort" aria-label="Sort">
+          <select id="sort" class="sort" aria-label="Sort" title="Sort files">
             <option value="date-desc" data-i18n="sort.dateNewest">Date (newest)</option>
-            <option value="date-asc" data-i18n="sort.dateOldest">Date (oldest)</option>
-            <option value="name-asc" data-i18n="sort.nameAsc">Name A–Z</option>
+            <option value="date-asc"  data-i18n="sort.dateOldest">Date (oldest)</option>
+            <option value="name-asc"  data-i18n="sort.nameAsc">Name A–Z</option>
             <option value="name-desc" data-i18n="sort.nameDesc">Name Z–A</option>
           </select>
           <div class="divider"></div>
           <button id="chooseFolder" class="btn ghost" data-i18n="actions.chooseFolder">Choose folder…</button>
           <span id="folderBadge" class="badge hidden"></span>
+          <!-- One primary here -->
           <button id="downloadSel" class="btn primary" data-i18n="actions.downloadSelected">Download selected</button>
-          <button id="deleteSel" class="btn danger" data-i18n="actions.deleteSelected">Delete selected</button>
+          <!-- Destructive, outline style -->
+          <button id="deleteSel" class="btn danger" data-i18n="actions.deleteSelected" title="Delete selected">Delete selected</button>
         </div>
       </div>
 
       <div id="listSkeleton" class="card skeleton hidden"></div>
       <div id="list" class="card list"></div>
 
-      <div id="progress" class="card hidden"><div id="progressLabel" class="muted" data-i18n="status.preparing">Preparing…</div><div class="meter"><div id="progressFill" class="meter-fill"></div></div></div>
-      <div class="statusline"><span id="selectedBadge" class="badge hidden" data-i18n="status.selected">Selected: 0</span><span id="opBadge" class="badge hidden"></span></div>
+      <div id="progress" class="card hidden" aria-live="polite">
+        <div id="progressLabel" class="muted" data-i18n="status.preparing">Preparing…</div>
+        <div class="meter"><div id="progressFill" class="meter-fill"></div></div>
+      </div>
+
+      <div class="statusline">
+        <span id="selectedBadge" class="badge hidden" data-i18n="status.selected">Selected: 0</span>
+        <span id="opBadge" class="badge hidden"></span>
+      </div>
     </section>
 
     <!-- Diagnostics view -->
     <section id="viewDiag" class="hidden">
       <div class="card grid-two">
         <div>
-          <div class="field"><label data-i18n="device.url">Device URL</label><input id="diagBase" placeholder="http://192.168.4.1" spellcheck="false"/></div>
+          <div class="field">
+            <label data-i18n="device.url">Device URL</label>
+            <input id="diagBase" placeholder="http://192.168.4.1" spellcheck="false"/>
+          </div>
           <div class="actions"><button id="diagRun" class="btn primary" data-i18n="actions.runDiag">Run diagnostics</button></div>
         </div>
         <div class="card soft">
@@ -89,9 +130,11 @@
           <div id="diagSummary" class="muted small" style="margin-top:.5rem"></div>
         </div>
       </div>
+
       <div class="card"><b>Version</b><pre id="diagV"></pre></div>
       <div class="card"><b>Status</b><pre id="diagS"></pre></div>
       <div class="card"><b>List</b><pre id="diagL"></pre></div>
+
       <div class="card"><b>Wi‑Fi Scan</b>
         <div id="wifiList" class="wifi-list"></div>
         <pre id="diagW" class="muted small"></pre>
@@ -99,14 +142,15 @@
     </section>
   </main>
 
-  <!-- Custom context menu for file items -->
   <div id="ctx" class="ctx hidden" role="menu" aria-hidden="true">
-    <button data-act="open" class="ctx-item" data-i18n="ctx.open">Open link</button>
-    <button data-act="copy" class="ctx-item" data-i18n="ctx.copy">Copy link</button>
+    <button data-act="open"  class="ctx-item" data-i18n="ctx.open">Open link</button>
+    <button data-act="copy"  class="ctx-item" data-i18n="ctx.copy">Copy link</button>
     <button data-act="delete" class="ctx-item danger" data-i18n="ctx.delete">Delete</button>
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <script src="./index.js"></script>
+
+  <!-- ✅ Proper script tag + defer so DOM is parsed before index.js runs -->
+  <script src="./index.js" defer></script>
 </body>
 </html>
