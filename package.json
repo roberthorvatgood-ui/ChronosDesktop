@@ -1,0 +1,37 @@
+{
+  "name": "chronos-desktop",
+  "version": "1.2.9",
+  "description": "Chronos — Electron desktop (context menu, multi-select, i18n persistence, theming tokens, installer)",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^40.1.0",
+    "electron-builder": "^26.6.0"
+  },
+  "build": {
+    "appId": "com.didakta.chronos",
+    "productName": "Chronos Desktop",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*"
+    ],
+    "asar": true,
+    "win": {
+      "target": "nsis",
+      "icon": "renderer/assets/logo.png",
+      "artifactName": "Chronos-Setup-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": "always"
+    }
+  }
+}

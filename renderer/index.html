@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <!-- [2026-01-29 15:20 CET] Enterprise UI + i18n + context menu -->
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Chronos — Desktop</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="./assets/logo.png" class="brand-logo" alt="Didakta Horvat"/>
+      <div class="brand-text">
+        <div class="brand-title" data-i18n="app.title">Chronos Exports</div>
+        <div class="brand-sub" data-i18n="app.subtitle">Enterprise export portal</div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="chip" id="status">Chronos: Not available</div>
+      <select id="lang" aria-label="Language"><option value="en">EN</option><option value="hr">HR</option></select>
+      <button id="themeToggle" class="icon-btn" title="Theme" aria-label="Theme">🌙</button>
+    </div>
+  </header>
+
+  <nav class="tabs card">
+    <button id="tabExports" class="tab active" data-i18n="tabs.exports">Exports</button>
+    <button id="tabDiag" class="tab" data-i18n="tabs.diagnostics">Diagnostics</button>
+  </nav>
+
+  <main class="container">
+    <!-- Exports view -->
+    <section id="viewExports">
+      <div class="card grid-two">
+        <div>
+          <div class="field"><label for="base" data-i18n="device.url">Device URL</label><input id="base" placeholder="http://192.168.4.1" spellcheck="false"/></div>
+          <div class="actions"><button id="save" class="btn primary" data-i18n="actions.saveCheck">Save & Check</button><button id="reset" class="btn ghost" data-i18n="actions.reset">Reset</button><span class="hint" data-i18n="device.hint">Connect to Chronos‑AP and click Save & Check.</span></div>
+        </div>
+        <div class="storage">
+          <div class="storage-line"><span data-i18n="storage.title">Storage</span><span class="muted"><span id="usedText">–</span> / <span id="totalText">–</span> (<span id="usedPct">0%</span>)</span></div>
+          <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
+          <div class="muted small"><span data-i18n="storage.items">Items</span>: <b id="itemsCount">0</b> • <b id="daysCount">0</b> <span data-i18n="storage.days">days</span></div>
+        </div>
+      </div>
+
+      <div class="commandbar card">
+        <div class="group">
+          <button id="refresh" class="btn" data-i18n="actions.refresh">Refresh</button>
+          <div class="divider"></div>
+          <button id="expand" class="btn ghost" data-i18n="actions.expand">Expand</button>
+          <button id="collapse" class="btn ghost" data-i18n="actions.collapse">Collapse</button>
+          <div class="divider"></div>
+          <button id="selectAll" class="btn ghost" data-i18n="actions.selectAll">Select all</button>
+          <button id="clearSel" class="btn ghost" data-i18n="actions.clear">Clear</button>
+        </div>
+        <div class="group right">
+          <input id="search" class="search" placeholder="Search…" data-i18n-placeholder="search.placeholder"/>
+          <select id="sort" class="sort" aria-label="Sort">
+            <option value="date-desc" data-i18n="sort.dateNewest">Date (newest)</option>
+            <option value="date-asc" data-i18n="sort.dateOldest">Date (oldest)</option>
+            <option value="name-asc" data-i18n="sort.nameAsc">Name A–Z</option>
+            <option value="name-desc" data-i18n="sort.nameDesc">Name Z–A</option>
+          </select>
+          <div class="divider"></div>
+          <button id="chooseFolder" class="btn ghost" data-i18n="actions.chooseFolder">Choose folder…</button>
+          <span id="folderBadge" class="badge hidden"></span>
+          <button id="downloadSel" class="btn primary" data-i18n="actions.downloadSelected">Download selected</button>
+          <button id="deleteSel" class="btn danger" data-i18n="actions.deleteSelected">Delete selected</button>
+        </div>
+      </div>
+
+      <div id="listSkeleton" class="card skeleton hidden"></div>
+      <div id="list" class="card list"></div>
+
+      <div id="progress" class="card hidden"><div id="progressLabel" class="muted" data-i18n="status.preparing">Preparing…</div><div class="meter"><div id="progressFill" class="meter-fill"></div></div></div>
+      <div class="statusline"><span id="selectedBadge" class="badge hidden" data-i18n="status.selected">Selected: 0</span><span id="opBadge" class="badge hidden"></span></div>
+    </section>
+
+    <!-- Diagnostics view -->
+    <section id="viewDiag" class="hidden">
+      <div class="card grid-two">
+        <div>
+          <div class="field"><label data-i18n="device.url">Device URL</label><input id="diagBase" placeholder="http://192.168.4.1" spellcheck="false"/></div>
+          <div class="actions"><button id="diagRun" class="btn primary" data-i18n="actions.runDiag">Run diagnostics</button></div>
+        </div>
+        <div class="card soft">
+          <div><b data-i18n="diag.summary">Summary</b></div>
+          <div id="diagSummary" class="muted small" style="margin-top:.5rem"></div>
+        </div>
+      </div>
+      <div class="card"><b>Version</b><pre id="diagV"></pre></div>
+      <div class="card"><b>Status</b><pre id="diagS"></pre></div>
+      <div class="card"><b>List</b><pre id="diagL"></pre></div>
+      <div class="card"><b>Wi‑Fi Scan</b>
+        <div id="wifiList" class="wifi-list"></div>
+        <pre id="diagW" class="muted small"></pre>
+      </div>
+    </section>
+  </main>
+
+  <!-- Custom context menu for file items -->
+  <div id="ctx" class="ctx hidden" role="menu" aria-hidden="true">
+    <button data-act="open" class="ctx-item" data-i18n="ctx.open">Open link</button>
+    <button data-act="copy" class="ctx-item" data-i18n="ctx.copy">Copy link</button>
+    <button data-act="delete" class="ctx-item danger" data-i18n="ctx.delete">Delete</button>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="./index.js"></script>
+</body>
+</html>
