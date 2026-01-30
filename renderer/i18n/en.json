@@ -1,13 +1,10 @@
 {
   "app.title": "Chronos Exports",
   "app.subtitle": "Enterprise export portal",
-
   "tabs.exports": "Exports",
   "tabs.diagnostics": "Diagnostics",
-
   "device.url": "Device URL",
   "device.hint": "Connect to Chronos‑AP and click Save & Check.",
-
   "actions.saveCheck": "Save & Check",
   "actions.reset": "Reset",
   "actions.refresh": "Refresh",
@@ -20,37 +17,29 @@
   "actions.deleteSelected": "Delete selected",
   "actions.delete": "Delete",
   "actions.runDiag": "Run diagnostics",
-
   "storage.title": "Storage",
   "storage.items": "Items",
   "storage.days": "days",
-
   "search.placeholder": "Search…",
-
   "sort.dateNewest": "Date (newest)",
   "sort.dateOldest": "Date (oldest)",
   "sort.nameAsc": "Name A–Z",
   "sort.nameDesc": "Name Z–A",
-
   "status.preparing": "Preparing…",
   "status.selected": "Selected:",
   "status.checking": "Chronos: Checking…",
   "status.off": "Chronos: Not available",
-
   "list.empty": "No data.",
-
   "ctx.open": "Open link",
   "ctx.copy": "Copy link",
   "ctx.delete": "Delete",
-
   "confirm.deleteFile": "Delete file: {name}?",
-
   "toast.connected": "Connected",
   "toast.deleted": "Deleted",
   "toast.copied": "Link copied",
   "toast.nothingSelected": "Nothing selected",
   "toast.dlStarted": "Downloads started",
   "toast.dlFail": "Download failed",
-
+  "toast.dlDone": "Downloads completed",
   "diag.summary": "Summary"
 }
