@@ -1,6 +1,7 @@
-// [Updated 2026-01-31 16:05 CET] All downloads use app Save dialog (no browser)
-// - File click: unchanged trigger (downloadSelected), now works (timeout fix in main.js).
-// - ZIP per day: route through downloadSelected (was openExternal).
+// [Updated 2026-01-31 17:10 CET] Language switch + Dark mode + Density toggle + Sort-on-change
+// - Adds #sort change handler to trigger renderList() immediately.
+// - Everything else unchanged from the previous working version.
+
 (function () {
   const el = map(['status','base','save','reset','totalText','usedText','usedPct','meterFill','itemsCount','daysCount','refresh','expand','collapse','selectAll','clearSel','chooseFolder','folderBadge','downloadSel','deleteSel','search','sort','list','listSkeleton','progress','progressLabel','progressFill','selectedBadge','opBadge','tabExports','tabDiag','viewExports','viewDiag','diagBaseText','diagStatusText','diagVersionText','diagStorageText','diagItemsText','diagTimeText','diagRefresh','diagCopy','themeToggle','toast','lang','ctx','densityToggle']);
   function map(ids){ const o={}; ids.forEach(id=> o[id]=document.getElementById(id)); return o; }
@@ -21,23 +22,75 @@
   };
 
   let I18N = {}; let currentStatusState='off';
-  async function loadLocale(lang){ try{ const r=await window.chronos.readLocale(lang); I18N=(r&&r.ok&&r.data)||{}; } catch{ const r=await window.chronos.readLocale('en'); I18N=(r&&r.ok&&r.data)||{}; } }
+
+  async function loadLocale(lang){
+    try{
+      const r=await window.chronos.readLocale(lang);
+      I18N=(r&&r.ok&&r.data)||{};
+    } catch{
+      const r=await window.chronos.readLocale('en');
+      I18N=(r&&r.ok&&r.data)||{};
+    }
+  }
+
   function t(k,f=''){ return (I18N&&I18N[k]) ?? f ?? k; }
-  function applyI18n(){ document.querySelectorAll('[data-i18n]').forEach(n=>{ const k=n.getAttribute('data-i18n'); n.textContent=t(k,n.textContent); }); if(el.search) el.search.placeholder=t('search.placeholder','Search…'); setStatus(currentStatusState); renderList(); }
-  function setTheme(theme){ document.documentElement.setAttribute('data-theme', theme); Store.setTheme(theme); el.themeToggle.innerHTML = theme==='dark'?'<span class="i i-sun"></span>':'<span class="i i-moon"></span>'; }
+
+  function setTheme(theme){
+    document.documentElement.setAttribute('data-theme', theme);
+    Store.setTheme(theme);
+    el.themeToggle.innerHTML = theme==='dark'
+      ? '<span class="i i-sun"></span>'
+      : '<span class="i i-moon"></span>';
+  }
+
   function showToast(msg,ms=1600){ el.toast.textContent=msg; el.toast.classList.remove('hidden'); setTimeout(()=> el.toast.classList.add('hidden'), ms); }
-  function setStatus(state,text){ currentStatusState=state; el.status.className='chip status-'+state; if(!text){ text= state==='on'? `${t('toast.connected','Connected')} (${Store.getBase()||''})`
-                                         : state==='checking'? t('status.checking','Chronos: Checking…')
-                                         : t('status.off','Chronos: Not available'); }
-    el.status.textContent=text; }
-  const nf=new Intl.NumberFormat(Store.getLang()||'en',{maximumFractionDigits:1});
-  function bytes(b){ const u=['B','KB','MB','GB','TB']; let i=0,x=Number(b||0); while(x>=1024&&i<u.length-1){x/=1024;i++;} return `${nf.format(x)} ${u[i]}`; }
-  const weekdayFmt=new Intl.DateTimeFormat(Store.getLang()||'en',{weekday:'long'});
-  function prettyDayLabel(iso){ const [y,m,d]=(iso||'').split('-').map(n=>+n); const dt=new Date(y,(m||1)-1,d||1); return `${weekdayFmt.format(dt)}, ${iso}`; }
+
+  function setStatus(state,text){
+    currentStatusState=state;
+    el.status.className='chip status-'+state;
+    if(!text){
+      text= state==='on'? `${t('toast.connected','Connected')} (${Store.getBase()||''})`
+           : state==='checking'? t('status.checking','Chronos: Checking…')
+           : t('status.off','Chronos: Not available');
+    }
+    el.status.textContent=text;
+  }
+
+  let nf, weekdayFmt;
+  function recomputeFormatters(lang){
+    const L = lang || Store.getLang() || 'en';
+    nf = new Intl.NumberFormat(L,{maximumFractionDigits:1});
+    weekdayFmt = new Intl.DateTimeFormat(L,{weekday:'long'});
+  }
+
+  function applyI18n(){
+    document.querySelectorAll('[data-i18n]').forEach(n=>{
+      const k=n.getAttribute('data-i18n');
+      n.textContent=t(k,n.textContent);
+    });
+    if(el.search) el.search.placeholder=t('search.placeholder','Search…');
+    setStatus(currentStatusState);
+    renderList();
+  }
+
+  function bytes(b){
+    const u=['B','KB','MB','GB','TB']; let i=0,x=Number(b||0);
+    while(x>=1024&&i<u.length-1){x/=1024;i++;}
+    return `${nf.format(x)} ${u[i]}`;
+  }
+  function prettyDayLabel(iso){
+    const [y,m,d]=(iso||'').split('-').map(n=>+n);
+    const dt=new Date(y,(m||1)-1,d||1);
+    return `${weekdayFmt.format(dt)}, ${iso}`;
+  }
   function nowText(){ return new Date().toLocaleString(); }
 
   let rawDays=[], expandState={}, selectedDays=new Set(), selectedFiles=new Set();
-  function updateSelectedBadge(){ const txt=`${t('status.selected','Selected:')} ${selectedFiles.size + selectedDays.size}`; el.selectedBadge.textContent=txt; if(selectedFiles.size || selectedDays.size) el.selectedBadge.classList.remove('hidden'); else el.selectedBadge.classList.add('hidden'); }
+  function updateSelectedBadge(){
+    const txt=`${t('status.selected','Selected:')} ${selectedFiles.size + selectedDays.size}`;
+    el.selectedBadge.textContent=txt;
+    if(selectedFiles.size || selectedDays.size) el.selectedBadge.classList.remove('hidden'); else el.selectedBadge.classList.add('hidden');
+  }
 
   async function loadStatus(base){
     try{
@@ -106,7 +159,7 @@
 
       const right=document.createElement('div'); right.className='day-actions';
 
-      // ZIP per day — now uses app downloader (Save dialog), not the browser
+      // ZIP per day — in-app downloader (Save dialog)
       const zip=document.createElement('button');
       zip.className='btn ghost'; zip.innerHTML='<span class="i i-arrow-download"></span><span>ZIP</span>';
       zip.addEventListener('click', async (e)=>{
@@ -141,15 +194,13 @@
           const leftF=document.createElement('div'); leftF.className='file-left';
           const name=(f.name||'').split('/').pop();
 
-          // selection key uses /exp/<date>/<name> for bulk downloads
-          const pathExp = `/exp/${d.date}/${name}`;
+          const pathExp = `/exp/${d.date}/${name}`; // selection key
           const chk=document.createElement('input'); chk.type='checkbox'; chk.checked=selectedFiles.has(pathExp);
           chk.addEventListener('click',e=>e.stopPropagation());
           chk.addEventListener('change',()=>{ if(chk.checked) selectedFiles.add(pathExp); else selectedFiles.delete(pathExp); updateSelectedBadge(); });
 
           // File click — in-app downloader (Save dialog)
-          const link=document.createElement('a'); link.className='file-name'; link.textContent=name||'(unnamed)';
-          link.href = pathExp; // kept for context menu copy; actual download uses IPC
+          const link=document.createElement('a'); link.className='file-name'; link.textContent=name||'(unnamed)'; link.href = pathExp;
           link.addEventListener('click', async (e)=>{
             e.preventDefault(); e.stopPropagation();
             try{
@@ -200,6 +251,37 @@
   }
   function hideCtx(){ el.ctx.classList.add('hidden'); el.ctx.setAttribute('aria-hidden','true'); el.ctx.onclick=null; }
 
+  /* ------------------ Theme/Density/Language handlers ------------------ */
+
+  el.themeToggle?.addEventListener('click', ()=>{
+    const next = (Store.getTheme()==='dark') ? 'light' : 'dark';
+    setTheme(next);
+  });
+
+  el.densityToggle?.addEventListener('click', ()=>{
+    const next = (Store.getDensity()==='compact') ? 'comfort' : 'compact';
+    Store.setDensity(next);
+    document.body.classList.toggle('density-compact', next==='compact');
+    el.densityToggle.setAttribute('aria-pressed', next==='compact' ? 'true' : 'false');
+    showToast(next==='compact' ? 'Dense mode' : 'Comfort mode');
+  });
+
+  el.lang?.addEventListener('change', async ()=>{
+    const lang = (el.lang.value||'en').trim().toLowerCase();
+    Store.setLang(lang);
+    document.documentElement.setAttribute('lang', lang);
+    recomputeFormatters(lang);
+    await loadLocale(lang);
+    applyI18n();
+    const base=Store.getBase() || (el.base.value||'').trim() || 'http://192.168.4.1';
+    if (currentStatusState==='on') { await loadStatus(base); }
+  });
+
+  // NEW: apply sort immediately on change
+  el.sort?.addEventListener('change', ()=> { renderList(); });
+
+  /* --------------------------------------------------------------------- */
+
   // Actions (unchanged)
   el.save?.addEventListener('click', async ()=>{
     const base=(el.base.value||'').trim() || 'http://192.168.4.1';
@@ -242,7 +324,6 @@
     if(r&&r.ok){ el.folderBadge.textContent=r.folder; el.folderBadge.classList.remove('hidden'); Store.setFolder(r.folder); }
   });
 
-  // Multi-download -> app Save dialogs (now shown by main.js)
   el.downloadSel?.addEventListener('click', async ()=>{
     const base=Store.getBase() || (el.base.value||'').trim() || 'http://192.168.4.1';
     if(!(selectedDays.size || selectedFiles.size)){ showToast('Nothing selected'); return; }
@@ -300,17 +381,30 @@ Checked: ${(el.diagTimeText&&el.diagTimeText.textContent)||''}`;
   }
 
   (async function init(){
+    const lang = Store.getLang() || 'en';
+    if(el.lang) el.lang.value=lang;
+    document.documentElement.setAttribute('lang', lang);
+    recomputeFormatters(lang);
+
     setTheme(Store.getTheme());
-    document.body.classList.toggle('density-compact', Store.getDensity()==='compact');
+    const isCompact = Store.getDensity()==='compact';
+    document.body.classList.toggle('density-compact', isCompact);
+    el.densityToggle?.setAttribute('aria-pressed', isCompact ? 'true' : 'false');
+
     const base=Store.getBase() || 'http://192.168.4.1';
     if(el.base) el.base.value=base;
-    if(el.lang) el.lang.value=Store.getLang();
-    await loadLocale(Store.getLang()); applyI18n();
+
+    await loadLocale(lang); applyI18n();
+
     setStatus('checking');
     try{
       const v=await window.chronos.version(base, Store.getPaths());
-      if(v&&v.ok){ setStatus('on'); if(el.diagVersionText) el.diagVersionText.textContent=v.version||''; if(el.diagBaseText) el.diagBaseText.textContent=base; await loadStatus(base); await loadList(base); }
-      else throw 0;
+      if(v&&v.ok){
+        setStatus('on');
+        if(el.diagVersionText) el.diagVersionText.textContent=v.version||'';
+        if(el.diagBaseText) el.diagBaseText.textContent=base;
+        await loadStatus(base); await loadList(base);
+      } else throw 0;
     }catch{ setStatus('off'); }
   })();
 })();
