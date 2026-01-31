@@ -1,13 +1,15 @@
 {
   "name": "chronos-desktop",
   "version": "1.2.12",
-  "description": "Chronos \u2014 Electron desktop (autodetect build)",
+  "description": "Chronos — Electron desktop (autodetect build)",
   "main": "main.js",
   "private": true,
   "scripts": {
     "start": "electron .",
     "start:devtools": "cross-env OPEN_DEVTOOLS=1 electron .",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win nsis --x64",
+    "dist:win:portable": "electron-builder --win portable --x64"
   },
   "devDependencies": {
     "electron": "^40.1.0",
@@ -23,17 +25,33 @@
       "renderer/**/*"
     ],
     "asar": true,
+
     "win": {
-      "target": "nsis",
-      "icon": "renderer/assets/logo.png",
-      "artifactName": "Chronos-Setup-${version}.exe"
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "Chronos-Setup-${version}.${ext}"
     },
+
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
       "allowElevation": true,
-      "allowToChangeInstallationDirectory": false,
-      "createDesktopShortcut": "always"
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "uninstallDisplayName": "Chronos Desktop",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    },
+
+    "portable": {
+      "artifactName": "Chronos-Portable-${version}.${ext}",
+      "unpackDirName": false,
+               "splashImage": "build/splash.bmp"
+     
     }
   }
 }
