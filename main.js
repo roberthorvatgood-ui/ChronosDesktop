@@ -1,14 +1,10 @@
 /**
  * main.js
- * [Updated 2026-01-31 16:05 CET] Fix file downloads + system Save dialog
- * - Fix: timeoutMs <= 0 means "no timeout" (do not auto-abort)
- * - New: downloadSelected opens system dialogs
- *        • single item -> Save File dialog
- *        • multiple items -> Choose Folder dialog
- * - ZIP downloads now also flow through the same pipeline (renderer change)
- *
- * Keeps: legacy IPC aliases, progress events, production CSP, path semantics
+ * [Updated 2026-01-31 18:20 CET]
+ * - Locale path now supports: renderer/i18n/<lang>.json (preferred), with fallbacks.
+ * - Keeps prior fixes: timeoutMs<=0 means "no timeout"; all downloads use system dialogs.
  */
+
 const { app, BrowserWindow, ipcMain, shell, dialog, clipboard, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -22,8 +18,7 @@ const IS_DEV = !app.isPackaged;
 function withTimeout(ms) {
   const c = new AbortController();
   let t = null;
-  // CHANGE: do not abort when ms <= 0 (treat as "no timeout")
-  if (Number.isFinite(ms) && ms > 0) {
+  if (Number.isFinite(ms) && ms > 0) { // <=0 => no timeout
     t = setTimeout(() => c.abort(), ms);
   }
   return { signal: c.signal, cancel: () => { if (t) clearTimeout(t); } };
@@ -48,13 +43,11 @@ async function httpJson(url, opts = {}) {
 
 async function streamToFile(url, outPath, progId) {
   await fsp.mkdir(path.dirname(outPath), { recursive: true });
-
-  // NOTE: timeoutMs: 0 now means "no timeout" and won't abort immediately.
-  const res = await httpGet(url, { timeoutMs: 0 });
+  const res = await httpGet(url, { timeoutMs: 0 }); // no timeout
 
   const total = Number(res.headers.get('content-length')) || 0;
   const out = fs.createWriteStream(outPath);
-  const reader = res.body.getReader(); // Web streams available in Node 20/Electron 40
+  const reader = res.body.getReader();
 
   let received = 0;
   try {
@@ -119,13 +112,29 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 
 /* ------------------------------ Locale reader ----------------------------- */
+// Support: renderer/i18n/<lang>.json  (preferred)
+// Fallbacks: renderer/<lang>.json, root <lang>.json, packaged equivalents
 function resolveLocalePath(lang) {
-  const p1 = path.join(__dirname, 'renderer', `${lang}.json`);
-  if (fs.existsSync(p1)) return p1;
-  const p2 = path.join(app.getAppPath ? app.getAppPath() : process.cwd(), 'renderer', `${lang}.json`);
-  if (fs.existsSync(p2)) return p2;
+  const file = `${(lang || 'en').toLowerCase()}.json`;
+  const baseAppPath = app.getAppPath ? app.getAppPath() : process.cwd();
+
+  const candidates = [
+    // Preferred
+    path.join(__dirname, 'renderer', 'i18n', file),
+    path.join(baseAppPath, 'renderer', 'i18n', file),
+    // Fallbacks: previous locations
+    path.join(__dirname, 'renderer', file),
+    path.join(baseAppPath, 'renderer', file),
+    path.join(__dirname, file),
+    path.join(baseAppPath, file),
+  ];
+
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
   return '';
 }
+
 ipcMain.handle('chronos:readLocale', async (_evt, { lang }) => {
   try {
     const p = resolveLocalePath((lang || 'en').toLowerCase());
@@ -227,7 +236,7 @@ ipcMain.handle('chronos:zip-url', (_e, base, date) => `${base}/zip?date=${encode
 ipcMain.handle('chronos:rmFile', async (_e, { base, fullPath }) => {
   try {
     if (!base || !fullPath) throw new Error('Missing base or path');
-    const url = `${base}/api/rm?f=${encodeURIComponent(fullPath)}`; // keep old semantics
+    const url = `${base}/api/rm?f=${encodeURIComponent(fullPath)}`;
     const r = await httpJson(url);
     return r?.ok ? { ok: true } : { ok: false, reason: r ? JSON.stringify(r) : 'fail' };
   } catch (e) { return { ok: false, reason: String(e?.message || e) }; }
@@ -238,57 +247,43 @@ ipcMain.handle('chronos:rmDate', async (_e, base, date) => {
 });
 
 /* ---------------- Download task builder (unchanged logic) ----------------- */
-/** Accepts absolute /dl?f=… URL or legacy /exp/... path */
 function buildDownloadTask(base, entry) {
   const s = String(entry || '');
-  // Absolute URL
   if (/^https?:\/\//i.test(s)) {
     const u = new URL(s);
     if (u.pathname.replace(/\/+$/, '') === '/dl') {
       const f = u.searchParams.get('f') || '';
       const clean = f.replace(/^\/+/, '');
-      const rel = clean.startsWith('exp/') ? clean.slice(4) : clean; // keep day subfolder
+      const rel = clean.startsWith('exp/') ? clean.slice(4) : clean;
       const name = decodeURIComponent(rel.split('/').pop() || 'file.bin');
       return { url: u.toString(), label: name, dest: rel };
     }
     const name = decodeURIComponent(u.pathname.split('/').pop() || 'file.bin');
     return { url: u.toString(), label: name, dest: name };
   }
-  // Legacy relative path /exp/2026-01-28/file.csv
   const f = s;
   const name = decodeURIComponent(f.split('/').pop() || 'file.bin');
-  const rel = f.startsWith('/exp/') ? f.slice('/exp/'.length) : name; // 2026-01-28/file.csv
+  const rel = f.startsWith('/exp/') ? f.slice('/exp/'.length) : name;
   return { url: `${base}/dl?f=${encodeURIComponent(f)}`, label: name, dest: rel };
 }
 
 /* ---------------- DownloadSelected with system dialogs -------------------- */
-/**
- * Payload: { base, days: string[], files: (string|url)[], folder?: string }
- * Behavior:
- *  - 1 item  -> Save File dialog (default filename suggested)
- *  - >1 items -> Choose Folder dialog (default folder suggested)
- */
 ipcMain.handle('chronos:downloadSelected', async (_evt, payload = {}) => {
   try {
     const { base, days = [], files = [], folder } = payload;
     const tasks = [];
 
-    // Day ZIPs (old route)
     for (const d of days) tasks.push({ url: `${base}/zip?date=${encodeURIComponent(d)}`, label: `Chronos_${d}.zip`, dest: `Chronos_${d}.zip` });
-
-    // Individual files
     for (const entry of files) tasks.push(buildDownloadTask(base, entry));
 
     if (tasks.length === 0) return { ok: false, reason: 'nothing-selected' };
 
     const defaultRoot = folder || downloadFolder || app.getPath('downloads');
 
-    // Decide dialog mode based on number of items
     let rootForMany = defaultRoot;
     let singleOutPath = null;
 
     if (tasks.length === 1) {
-      // Save As dialog for single item
       const w = BrowserWindow.getFocusedWindow();
       const suggested = path.join(defaultRoot, tasks[0].dest.replace(/\//g, path.sep));
       const { canceled, filePath } = await dialog.showSaveDialog(w, {
@@ -300,7 +295,6 @@ ipcMain.handle('chronos:downloadSelected', async (_evt, payload = {}) => {
       if (canceled || !filePath) return { ok: false, cancelled: true };
       singleOutPath = filePath;
     } else {
-      // Choose folder for multiple items
       const w = BrowserWindow.getFocusedWindow();
       const r = await dialog.showOpenDialog(w, {
         title: 'Choose destination folder',
@@ -311,14 +305,13 @@ ipcMain.handle('chronos:downloadSelected', async (_evt, payload = {}) => {
       rootForMany = r.filePaths[0];
     }
 
-    // Download
     const total = tasks.length;
     let done = 0;
 
     for (const t of tasks) {
       const out =
         singleOutPath ? singleOutPath
-        : path.join(rootForMany, t.dest.replace(/\//g, path.sep)); // keep day subfolders
+        : path.join(rootForMany, t.dest.replace(/\//g, path.sep));
 
       await streamToFile(t.url, out, t.label);
       done++;
@@ -331,5 +324,4 @@ ipcMain.handle('chronos:downloadSelected', async (_evt, payload = {}) => {
   }
 });
 
-// legacy alias with hyphenated channel name
 ipcMain.handle('chronos:download-selected', async (_e, payload) => ipcMain.invoke('chronos:downloadSelected', payload));

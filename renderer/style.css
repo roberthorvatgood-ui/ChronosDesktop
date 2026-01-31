@@ -1,4 +1,4 @@
-/* [Updated 2026-01-31 17:00 CET] Full stylesheet (base + density-compact + i-sun) */
+/* [Updated 2026-01-31 18:20 CET] Full stylesheet + restored topbar language dropdown */
 
 /* Tokens */
 :root{--accent:#115ea3; --accent-2:#0e4775; --danger:#c42b1c; --ok:#107c10; --bg:#f5f5f6; --surface:#ffffff; --border:#d1d6db; --text:#111318; --muted:#5d6670; --btn-bg:#ffffff; --btn-fg:var(--text); --btn-border:#c9d1d9; --btn-hover:#f3f4f6; --radius:8px; --shadow:0 6px 24px rgba(0,0,0,.08),0 2px 6px rgba(0,0,0,.06)}
@@ -17,10 +17,17 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,Segoe
 .brand-sub{opacity:.95}
 .right{display:flex;gap:10px;align-items:center}
 
-/* Lang select (light/dark consistent) */
-.right select{appearance:none;cursor:pointer;border-radius:8px;border:1px solid rgba(255,255,255,.7);padding:.36rem .90rem .36rem .70rem;background:rgba(255,255,255,.18);color:#fff;min-width:64px}
-html[data-theme='light'] .right select{border:1px solid var(--border);background:#fff;color:var(--text)}
-.right select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* RESTORED: language select look (pre-update) */
+.topbar .right select#lang{
+  appearance:none; -webkit-appearance:none; -moz-appearance:none;
+  border-radius:8px; border:1px solid rgba(255,255,255,.7);
+  padding:.36rem .90rem .36rem .70rem; background:rgba(255,255,255,.18);
+  color:#fff; min-width:64px;
+}
+html[data-theme='light'] .topbar .right select#lang{
+  border:1px solid var(--border); background:#fff; color:var(--text);
+}
+.topbar .right select#lang:focus-visible{ outline:2px solid var(--accent); outline-offset:2px }
 
 /* Icon button */
 .icon-btn{background:transparent;border:1px solid rgba(255,255,255,.6);color:#fff;padding:.35rem .55rem;border-radius:8px;cursor:pointer}
@@ -96,7 +103,7 @@ html[data-theme='light'] .chip{border-color:rgba(0,0,0,.12)}
 .kv{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .kv > div{display:flex;justify-content:space-between;border:1px dashed var(--border);border-radius:8px;padding:8px 10px}
 
-/* Fluent 16px icons */
+/* Icons */
 .i{display:inline-block;width:16px;height:16px;background-size:16px 16px;vertical-align:-2px}
 .i-check{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='white'%3E%3Cpath d='M6.3 10.2 3.8 7.7l-1 1 3.5 3.5 7-7-1-1-6 6z'/%3E%3C/svg%3E")}
 .i-arrow-sync{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'%3E%3Cpath d='M11.5 4.5a5 5 0 1 0 1.4 4.1h-1.6a3.5 3.5 0 1 1-1-2.4l-1.3 1.3H14V1.9l-1.4 1.4-1.1 1.2z'/%3E%3C/svg%3E")}
@@ -110,10 +117,9 @@ html[data-theme='light'] .chip{border-color:rgba(0,0,0,.12)}
 .i-dense{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'%3E%3Cpath d='M2 3h12v2H2zm0 4h12v2H2zm0 4h12v2H2z'/%3E%3C/svg%3E")}
 .i-moon{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'%3E%3Cpath d='M10.5 12.5a5.5 5.5 0 0 1-4.9-8A5.5 5.5 0 1 0 10.5 12.5z'/%3E%3C/svg%3E")}
 .i-copy{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'%3E%3Cpath d='M6 2h7v9H6zM3 5h2v9h7v2H3z'/%3E%3C/svg%3E")}
+.i-sun{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'%3E%3Cpath d='M8 4.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zm0-3.5h1v2H7V1h1zm0 11h1v2H7v-2h1zM1 7h2v2H1V7zm12 0h2v2h-2V7zM3.2 2.8l1.4 1.4L3.2 5.6 1.8 4.2 3.2 2.8zm9.6 9.6-1.4-1.4 1.4-1.4 1.4 1.4-1.4 1.4zm0-9.6 1.4 1.4-1.4 1.4-1.4-1.4L12.8 2.8zM3.2 10.2l1.4 1.4-1.4 1.4-1.4-1.4 1.4-1.4z'/%3E%3C/svg%3E")}
 
-/* --- Additions --- */
-
-/* Compact density overrides */
+/* Density compact overrides */
 body.density-compact { font-size:13px; }
 body.density-compact .topbar { min-height:48px; padding:8px 12px; }
 body.density-compact .container { padding:0 12px; }
@@ -131,6 +137,3 @@ body.density-compact .day { padding:8px 6px; }
 body.density-compact .day-left { gap:8px; }
 body.density-compact .commandbar { gap:8px; padding:8px 10px; margin:10px 0; }
 body.density-compact .meter { height:8px; }
-
-/* Sun icon for light mode (pairs with i-moon) */
-.i-sun{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'%3E%3Cpath d='M8 4.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zm0-3.5h1v2H7V1h1zm0 11h1v2H7v-2h1zM1 7h2v2H1V7zm12 0h2v2h-2V7zM3.2 2.8l1.4 1.4L3.2 5.6 1.8 4.2 3.2 2.8zm9.6 9.6-1.4-1.4 1.4-1.4 1.4 1.4-1.4 1.4zm0-9.6 1.4 1.4-1.4 1.4-1.4-1.4L12.8 2.8zM3.2 10.2l1.4 1.4-1.4 1.4-1.4-1.4 1.4-1.4z'/%3E%3C/svg%3E")}

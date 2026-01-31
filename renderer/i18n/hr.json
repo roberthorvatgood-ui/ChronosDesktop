@@ -1,39 +1,46 @@
 {
   "app.title": "Chronos izvozi",
-  "app.subtitle": "Enterprise portal za izvoz",
+  "app.subtitle": "Portal za izvoz datoteka",
+
   "tabs.exports": "Izvozi",
   "tabs.diagnostics": "Dijagnostika",
+
   "device.url": "URL uređaja",
-  "device.hint": "Povežite se na Chronos‑AP i kliknite Spremi i provjeri.",
+  "device.hint": "Povežite se na Chronos‑AP Wifi i kliknite Spremi i provjeri.",
+
   "actions.saveCheck": "Spremi i provjeri",
   "actions.reset": "Resetiraj",
   "actions.refresh": "Osvježi",
   "actions.expand": "Proširi",
   "actions.collapse": "Sažmi",
   "actions.selectAll": "Odaberi sve",
-  "actions.clear": "Očisti",
+  "actions.clear": "Očisti odabir",
   "actions.chooseFolder": "Odaberi mapu…",
   "actions.downloadSelected": "Preuzmi odabrano",
   "actions.deleteSelected": "Obriši odabrano",
   "actions.delete": "Obriši",
+
   "actions.runDiag": "Pokreni dijagnostiku",
+  "actions.copyDiag": "Kopiraj dijagnostiku",
+  "actions.refreshDiag": "Osvježi dijagnostiku",
+
   "storage.title": "Pohrana",
   "storage.items": "Stavke",
   "storage.days": "dana",
+
   "search.placeholder": "Pretraži…",
+
   "sort.dateNewest": "Datum (najnovije)",
   "sort.dateOldest": "Datum (najstarije)",
   "sort.nameAsc": "Naziv A–Z",
   "sort.nameDesc": "Naziv Z–A",
+
+  "status.label": "Status",
   "status.preparing": "Priprema…",
   "status.selected": "Odabrano:",
   "status.checking": "Chronos: Provjera…",
   "status.off": "Chronos: Nedostupan",
-  "list.empty": "Nema podataka.",
-  "ctx.open": "Otvori poveznicu",
-  "ctx.copy": "Kopiraj poveznicu",
-  "ctx.delete": "Obriši",
-  "confirm.deleteFile": "Obrisati datoteku: {name}?",
+
   "toast.connected": "Povezano",
   "toast.deleted": "Obrisano",
   "toast.copied": "Poveznica kopirana",
@@ -41,5 +48,34 @@
   "toast.dlStarted": "Preuzimanje započeto",
   "toast.dlFail": "Preuzimanje nije uspjelo",
   "toast.dlDone": "Preuzimanje završeno",
-  "diag.summary": "Sažetak"
+
+  "list.empty": "Nema podataka.",
+  "ctx.open": "Otvori poveznicu",
+  "ctx.copy": "Kopiraj poveznicu",
+  "ctx.delete": "Obriši",
+  "confirm.deleteFile": "Obrisati datoteku: {name}?",
+
+  "diag.summary": "Sažetak",
+  "diag.base": "Adresa",
+  "diag.version": "Verzija",
+  "diag.latencyVer": "Kašnjenje verzije",
+  "diag.latencyStatus": "Kašnjenje statusa",
+  "diag.latencyList": "Kašnjenje popisa",
+  "diag.paths": "Putanje",
+  "diag.checked": "Zadnja provjera",
+
+  "mode.csv": "CSV",
+  "mode.bin": "Binarno",
+  "mode.img": "Slika",
+  "mode.jpg": "JPEG",
+  "mode.png": "PNG",
+  "mode.bmp": "Bitmapa",
+  "mode.wav": "WAV zvuk",
+  "mode.txt": "Tekst",
+  "mode.log": "Dnevnik",
+  "mode.json": "JSON",
+  "mode.pdf": "PDF",
+  "mode.zip": "ZIP",
+  "mode.raw": "RAW",
+  "mode.meas": "Mjerenje"
 }

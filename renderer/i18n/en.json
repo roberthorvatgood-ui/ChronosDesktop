@@ -1,10 +1,13 @@
 {
   "app.title": "Chronos Exports",
   "app.subtitle": "Enterprise export portal",
+
   "tabs.exports": "Exports",
   "tabs.diagnostics": "Diagnostics",
+
   "device.url": "Device URL",
   "device.hint": "Connect to Chronos‑AP and click Save & Check.",
+
   "actions.saveCheck": "Save & Check",
   "actions.reset": "Reset",
   "actions.refresh": "Refresh",
@@ -16,24 +19,28 @@
   "actions.downloadSelected": "Download selected",
   "actions.deleteSelected": "Delete selected",
   "actions.delete": "Delete",
+
   "actions.runDiag": "Run diagnostics",
+  "actions.copyDiag": "Copy diagnostics",
+  "actions.refreshDiag": "Refresh diagnostics",
+
   "storage.title": "Storage",
   "storage.items": "Items",
   "storage.days": "days",
+
   "search.placeholder": "Search…",
+
   "sort.dateNewest": "Date (newest)",
   "sort.dateOldest": "Date (oldest)",
   "sort.nameAsc": "Name A–Z",
   "sort.nameDesc": "Name Z–A",
+
+  "status.label": "Status",
   "status.preparing": "Preparing…",
   "status.selected": "Selected:",
   "status.checking": "Chronos: Checking…",
   "status.off": "Chronos: Not available",
-  "list.empty": "No data.",
-  "ctx.open": "Open link",
-  "ctx.copy": "Copy link",
-  "ctx.delete": "Delete",
-  "confirm.deleteFile": "Delete file: {name}?",
+
   "toast.connected": "Connected",
   "toast.deleted": "Deleted",
   "toast.copied": "Link copied",
@@ -41,5 +48,34 @@
   "toast.dlStarted": "Downloads started",
   "toast.dlFail": "Download failed",
   "toast.dlDone": "Downloads completed",
-  "diag.summary": "Summary"
+
+  "list.empty": "No data.",
+  "ctx.open": "Open link",
+  "ctx.copy": "Copy link",
+  "ctx.delete": "Delete",
+  "confirm.deleteFile": "Delete file: {name}?",
+
+  "diag.summary": "Summary",
+  "diag.base": "Base",
+  "diag.version": "Version",
+  "diag.latencyVer": "Version latency",
+  "diag.latencyStatus": "Status latency",
+  "diag.latencyList": "List latency",
+  "diag.paths": "Paths",
+  "diag.checked": "Last check",
+
+  "mode.csv": "CSV",
+  "mode.bin": "Binary",
+  "mode.img": "Image",
+  "mode.jpg": "JPEG",
+  "mode.png": "PNG",
+  "mode.bmp": "Bitmap",
+  "mode.wav": "WAV audio",
+  "mode.txt": "Text",
+  "mode.log": "Log",
+  "mode.json": "JSON",
+  "mode.pdf": "PDF",
+  "mode.zip": "ZIP",
+  "mode.raw": "Raw",
+  "mode.meas": "Measurement"
 }
