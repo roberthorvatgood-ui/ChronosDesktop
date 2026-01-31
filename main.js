@@ -1,249 +1,236 @@
-// [2026-01-29 19:15 CET] Electron main v1.2.10 — security hardening + safe paths + single-instance + navigation guard
+/**
+ * main.js
+ * [Updated 2026-01-30 23:59 CET] Compat Bridge
+ * - Keeps new features (locale handler, progress, prod CSP)
+ * - Restores old working behaviors:
+ *   • Default /api/version|status|list when no {paths} provided
+ *   • Accepts legacy IPC signatures (base as string)
+ *   • Adds legacy IPC aliases (chronos:dl-url, chronos:zip-url, app:open-external, chronos:download-selected)
+ *   • Downloads accept either absolute href OR legacy /exp/... paths
+ *   • Day ZIP route is /zip?date=<YYYY-MM-DD> (as in the old app)
+ */
 
-const { app, BrowserWindow, ipcMain, net, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, clipboard, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { exec } = require('child_process');
+const fsp = fs.promises;
 
-let win;
+let mainWindow;
 let downloadFolder = null;
+const IS_DEV = !app.isPackaged;
 
-// Keep single instance (better install experience)
-const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
-  app.quit();
-} else {
-  app.on('second-instance', () => {
-    if (win) {
-      if (win.isMinimized()) win.restore();
-      win.focus();
-    }
-  });
-}
-
-// Align Windows App User Model ID with installer (taskbar pinning/notifications)
-// It’s good practice to set this, and on Squirrel Windows you must align IDs. [6](https://cheatsheetseries.owasp.org/cheatsheets/Content_Security_Policy_Cheat_Sheet.html)
-app.setAppUserModelId('com.didakta.chronos');
-
-function createWindow() {
-  win = new BrowserWindow({
-    width: 1240,
-    height: 900,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: true,          // Chromium sandbox on the renderer for defense-in-depth [4](https://github.com/WICG/private-network-access/blob/main/explainer.md)
-      webSecurity: true,
-      enableRemoteModule: false
-    }
-  });
-
-  // Block unexpected window opens (e.g., target=_blank)
-  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-
-  // Prevent navigation away from our local UI
-  win.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith('file://')) event.preventDefault();
-  });
-
-  win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-}
-
-app.whenReady().then(createWindow);
-
-// --------------------------
-// Helper: robust HTTP client
-// --------------------------
-function getText(url) {
-  return new Promise((resolve, reject) => {
-    const req = net.request(url);
-    let body = '';
-    req.on('response', (res) => {
-      res.on('data', (c) => (body += c.toString()));
-      res.on('end', () => resolve(body));
-    });
-    req.on('error', reject);
-    req.end();
-  });
-}
-
-async function getJson(url) {
-  const t = await getText(url);
-  try { return JSON.parse(t); } catch { return { ok: false, raw: t }; }
-}
-
-// --------------------------
-// Device endpoints (IPC)
-// --------------------------
-ipcMain.handle('chronos:version', (_e, base) => getJson(`${base}/api/version`));
-ipcMain.handle('chronos:status',  (_e, base) => getJson(`${base}/api/status`));
-ipcMain.handle('chronos:list',    (_e, base) => getJson(`${base}/api/list`));
-ipcMain.handle('chronos:purge',   (_e, base, min) => getJson(`${base}/api/purge?minFreeMB=${encodeURIComponent(min)}`));
-ipcMain.handle('chronos:rmFile',  (_e, base, f) => getJson(`${base}/api/rm?f=${encodeURIComponent(f)}`));
-ipcMain.handle('chronos:rmDate',  (_e, base, d) => getJson(`${base}/api/rm?date=${encodeURIComponent(d)}`));
-ipcMain.handle('chronos:ping',    (_e, base) => getJson(`${base}/api/ping`));
-ipcMain.handle('chronos:dl-url',  (_e, base, date, name) => `${base}/dl?f=/exp/${date}/${encodeURIComponent(name)}`);
-ipcMain.handle('chronos:zip-url', (_e, base, date) => `${base}/zip?date=${encodeURIComponent(date)}`);
-
-// --------------------------
-// Folder chooser (IPC)
-// --------------------------
-ipcMain.handle('chronos:choose-folder', async () => {
-  const res = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] });
-  if (!res.canceled && res.filePaths && res.filePaths.length) {
-    downloadFolder = res.filePaths[0];
-    return { ok: true, folder: downloadFolder };
-  }
-  return { ok: false };
-});
-
-// --------------------------
-// Open external link (IPC)
-// --------------------------
-ipcMain.handle('app:open-external', (_e, url) => {
-  try { shell.openExternal(url); return { ok: true }; }
-  catch (e) { return { ok: false, err: String(e) }; }
-});
-// shell.openExternal launches the default system browser for a URL. [6](https://cheatsheetseries.owasp.org/cheatsheets/Content_Security_Policy_Cheat_Sheet.html)
-
-// --------------------------
-// Safe path & streaming utils
-// --------------------------
-function sanitizeFilename(input) {
-  // Strip leading dots and replace forbidden Windows characters; keep reasonable Unicode.
-  return String(input).replace(/^[.]+/, '').replace(/[\\/:*?"<>|]/g, '_');
-}
-
-function safeJoin(baseDir, relativeName) {
-  const sanitized = sanitizeFilename(relativeName).replace(/\.\./g, '_'); // kill traversal fragments
-  const joined = path.normalize(path.join(baseDir, sanitized));
-  const base = path.normalize(baseDir + path.sep);
-  if (!joined.startsWith(base)) throw new Error('Path traversal detected');
-  return joined;
-}
-
-function streamToFile(url, destPath, progId) {
-  return new Promise((resolve, reject) => {
-    const request = net.request(url);
-    request.on('response', (response) => {
-      const headerLen = response.headers['content-length'];
-      const total = parseInt(Array.isArray(headerLen) ? (headerLen[0] ?? '0') : (headerLen ?? '0'), 10);
-      let received = 0;
-      const out = fs.createWriteStream(destPath);
-      response.on('data', (chunk) => {
-        received += chunk.length;
-        out.write(chunk);
-        if (win && progId) win.webContents.send('chronos:download-progress', { id: progId, received, total });
-      });
-      response.on('end', () => out.end(() => resolve({ ok: true, path: destPath })));
-      response.on('error', (e) => { out.destroy(); reject(e); });
-    });
-    request.on('error', reject);
-    request.end();
-  });
-}
-
-ipcMain.handle('chronos:download-selected', async (_e, payload) => {
-  const { base, days, files, folder } = payload;
-  const target = folder ?? downloadFolder;
-  if (!target) return { ok: false, err: 'no folder' };
-
-  try { fs.mkdirSync(target, { recursive: true }); } catch {}
-
-  let i = 0;
-  const total = (Array.isArray(days) ? days.length : 0) + (Array.isArray(files) ? files.length : 0);
-
-  // Download ZIPs per day
-  for (const d of (days ?? [])) {
-    i++;
-    const zipName = sanitizeFilename(`Chronos_${d}.zip`);
-    const dest = safeJoin(target, zipName);
-    await streamToFile(`${base}/zip?date=${encodeURIComponent(d)}`, dest, `day-${d}`);
-    if (win) win.webContents.send('chronos:download-step', { done: i, total, label: zipName });
-  }
-
-  // Download individual files
-  for (const f of (files ?? [])) {
-    i++;
-    // Keep only the filename segment after /exp/yyyy-mm-dd/
-    const parts = String(f).split('/');
-    const name = sanitizeFilename(parts.slice(3).join('/') || 'file.bin');
-    const dest = safeJoin(target, name);
-    const dir = path.dirname(dest);
-    try { fs.mkdirSync(dir, { recursive: true }); } catch {}
-    await streamToFile(`${base}/dl?f=${encodeURIComponent(f)}`, dest, `file-${name}`);
-    if (win) win.webContents.send('chronos:download-step', { done: i, total, label: name });
-  }
-
-  return { ok: true, folder: target };
-});
-
-// --------------------------
-// Wi‑Fi SSID scanning (ASCII-only parsing kept)
-// --------------------------
-function scanWifiOS() {
-  return new Promise((resolve) => {
-    const platform = process.platform;
-    let cmd;
-    if (platform === 'win32') cmd = 'cmd /c chcp 65001 >nul & netsh wlan show networks mode=Bssid';
-    else if (platform === 'darwin') cmd = '/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -s';
-    else cmd = 'nmcli -t -f SSID,SIGNAL dev wifi || nmcli -t -f SSID dev wifi';
-
-    exec(cmd, { timeout: 5000 }, (err, stdout, stderr) => {
-      let text = String(stdout ?? '') + String(stderr ?? '');
-      text = text.replace(new RegExp('\r', 'g'), '\n'); // keep ASCII '\r'
-      const lines = text.split('\n');
-
-      const reSSIDLineWin = new RegExp('^\\s*SSID\\s+\\d+\\s*:\\s*(.+)$', 'i');
-      const reSignalWin   = new RegExp('^\\s*Signal\\s*:\\s*(\\d{1,3})%', 'i');
-      const reColsSplit   = new RegExp('\\s{2,}');
-      const bySsid = new Map();
-
-      if (platform === 'win32') {
-        let current = null; let best = -1;
-        for (let i=0; i<lines.length; i++) {
-          const ln = String(lines[i] ?? '');
-          const m = ln.match(reSSIDLineWin);
-          if (m) { if (current !== null) { const prev = bySsid.get(current) ?? -1; bySsid.set(current, Math.max(prev, best)); }
-                   current = m[1].trim(); best = -1; continue; }
-          const s = ln.match(reSignalWin);
-          if (s && current !== null) { const pct = Math.max(0, Math.min(100, parseInt(s[1],10) || 0)); best = Math.max(best, pct); }
-        }
-        if (current !== null) { const prev = bySsid.get(current) ?? -1; bySsid.set(current, Math.max(prev, best)); }
-      } else if (platform === 'darwin') {
-        for (let i=1; i<lines.length; i++) {
-          const row = String(lines[i] ?? '').trim(); if (!row) continue;
-          const cols = row.split(reColsSplit); if (cols.length < 3) continue;
-          const ssid = (cols[0] ?? '').trim(); if (!ssid || ssid.toUpperCase()==='SSID') continue;
-          const rssi = parseInt(cols[2],10);
-          const pct = Number.isFinite(rssi) ? Math.max(0, Math.min(100, Math.round(2*(rssi+100)))) : 0;
-          const prev = bySsid.get(ssid) ?? -1; bySsid.set(ssid, Math.max(prev, pct));
-        }
-      } else { // Linux
-        for (let i=0; i<lines.length; i++) {
-          const row = String(lines[i] ?? '').trim(); if (!row) continue;
-          const parts = row.split(':');
-          const ssid = (parts[0] ?? '').trim(); if (!ssid || ssid.toUpperCase()==='SSID') continue;
-          const sig = parseInt((parts[1] ?? '0'),10) || 0;
-          const pct = Math.max(0, Math.min(100, sig));
-          const prev = bySsid.get(ssid) ?? -1; bySsid.set(ssid, Math.max(prev, pct));
-        }
+// ---------------- HTTP helpers (Node/Electron fetch) ----------------
+function withTimeout(ms){ const c=new AbortController(); const t=setTimeout(()=>c.abort(),ms); return {signal:c.signal,cancel:()=>clearTimeout(t)}; }
+async function httpGet(url, opts = {}){ const {timeoutMs=8000}=opts; const t=withTimeout(timeoutMs); const res=await fetch(url,{method:'GET',signal:t.signal}); t.cancel(); if(!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`); return res; }
+async function httpJson(url, opts = {}){ const r=await httpGet(url,opts); const ct=(r.headers.get('content-type')||'').toLowerCase(); if(ct.includes('application/json')) return r.json(); const txt=(await r.text()).trim(); try{return JSON.parse(txt);}catch{return { _text:txt }}}
+async function streamToFile(url, outPath, progId){
+  await fsp.mkdir(path.dirname(outPath), { recursive:true });
+  const res = await httpGet(url, { timeoutMs: 0 });
+  const total = Number(res.headers.get('content-length')) || 0;
+  const out = fs.createWriteStream(outPath); let received = 0;
+  const reader = res.body.getReader();
+  try {
+    while(true){ const {done, value} = await reader.read(); if(done) break;
+      if(value?.length){ out.write(Buffer.from(value)); received += value.length;
+        if(mainWindow) mainWindow.webContents.send('chronos:downloadProgress', { id: progId, received, total });
       }
-
-      const networks = Array.from(bySsid.entries()).map(([ssid, pct]) => ({ ssid, signalPct: Math.max(0, pct) }));
-      const found = networks.some(n => /chronos/i.test(n.ssid));
-      resolve({ ok:true, platform, found, networks, raw: text.slice(0, 4000) });
-    });
-  });
+    }
+    out.end();
+  } catch(e){ out.destroy(); throw e; }
+  return { ok:true, path: outPath };
 }
 
-try { ipcMain.removeHandler('wifi:scan'); } catch {}
-ipcMain.handle('wifi:scan', async () => {
-  try { return await scanWifiOS(); }
-  catch (e) { return { ok: false, err: String(e) }; }
+// ---------------- Args normalizer (accept old & new signatures) ----------------
+function normArgs(arg){ return (typeof arg === 'string') ? { base: arg } : (arg || {}); }
+
+// ---------------- Window & CSP ----------------
+function createWindow(){
+  mainWindow = new BrowserWindow({
+    width: 1240, height: 900, show:false, backgroundColor:'#0b0d10',
+    webPreferences: { preload: path.join(__dirname,'preload.js'), nodeIntegration:false, contextIsolation:true }
+  });
+  mainWindow.once('ready-to-show', ()=> mainWindow.show());
+  mainWindow.loadFile(path.join(__dirname,'renderer','index.html'));
+
+  // Production CSP (no CIDR; allows local nets)
+  if(!IS_DEV){
+    session.defaultSession.webRequest.onHeadersReceived((details, cb)=>{
+      const csp = [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data:",
+        "font-src 'self' data:",
+        "connect-src 'self' http://127.0.0.1:* http://localhost:* http://192.168.*.* http://10.*.*.* " +
+          Array.from({length:16}, (_,i)=>`http://172.${16+i}.*.*`).join(' '),
+        "object-src 'none'", "base-uri 'none'", "frame-ancestors 'none'"
+      ].join('; ');
+      cb({ responseHeaders: { ...details.responseHeaders, 'Content-Security-Policy':[csp] } });
+    });
+  }
+}
+
+function registerSingleInstanceLock(){
+  const ok=app.requestSingleInstanceLock(); if(!ok){ app.quit(); return false; }
+  app.on('second-instance', ()=>{ const w = BrowserWindow.getAllWindows()[0]; if(w){ if(w.isMinimized()) w.restore(); w.focus(); }});
+  return true;
+}
+app.on('ready', ()=>{ if(!registerSingleInstanceLock()) return; createWindow(); });
+app.on('window-all-closed', ()=>{ if(process.platform!=='darwin') app.quit(); });
+app.on('activate', ()=>{ if(BrowserWindow.getAllWindows().length===0) createWindow(); });
+
+// ---------------- Locale reader (new) ----------------
+function resolveLocalePath(lang){
+  const p1 = path.join(__dirname,'renderer',`${lang}.json`);
+  if (fs.existsSync(p1)) return p1;
+  const p2 = path.join(app.getAppPath ? app.getAppPath() : process.cwd(),'renderer',`${lang}.json`);
+  if (fs.existsSync(p2)) return p2;
+  return '';
+}
+ipcMain.handle('chronos:readLocale', async (_evt, { lang })=>{
+  try{ const p=resolveLocalePath((lang||'en').toLowerCase()); if(!p) return { ok:true, data:{} };
+    const txt=fs.readFileSync(p,'utf-8'); return { ok:true, data: JSON.parse(txt) };
+  }catch(e){ return { ok:false, reason:String(e?.message||e) } }
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+// ---------------- Device endpoints (compat: default /api) ----------------
+function urlFor(base, paths, key){
+  // If the renderer provided {paths}, use them; else use legacy /api/* (old app behavior)
+  if (paths && typeof paths === 'object') {
+    const p = key==='version' ? (paths.versionPath||'/version')
+          : key==='status'  ? (paths.statusPath ||'/status')
+          : key==='list'    ? (paths.listPath   ||'/list')
+          : '';
+    return new URL(p, base).toString();
+  }
+  // Legacy default
+  const legacy = key==='version' ? '/api/version'
+              : key==='status'  ? '/api/status'
+              : key==='list'    ? '/api/list' : '';
+  return `${base}${legacy}`;
+}
+ipcMain.handle('chronos:version', async (_evt, arg)=>{
+  try{ const { base, paths } = normArgs(arg); const u=urlFor(base, paths, 'version');
+    const d = await httpJson(u); let version='';
+    if (typeof d === 'string') version=d.trim();
+    else if (d && typeof d._text==='string') version=d._text.trim();
+    else if (d && typeof d==='object') version=String(d.version ?? d.ver ?? d.fw ?? '');
+    return { ok: !!version, version };
+  }catch(e){ return { ok:false, reason:String(e?.message||e) } }
 });
+ipcMain.handle('chronos:status', async (_evt, arg)=>{
+  try{ const { base, paths } = normArgs(arg); const u=urlFor(base, paths, 'status');
+    const d = await httpJson(u);
+    const total=Number((d&&(d.total??d.totalBytes??d.capacity??0))||0);
+    const used =Number((d&&(d.used ??d.usedBytes ??d.inUse  ??0))||0);
+    return { ok:true, total, used };
+  }catch(e){ return { ok:false, reason:String(e?.message||e) } }
+});
+ipcMain.handle('chronos:list', async (_evt, arg)=>{
+  try{ const { base, paths } = normArgs(arg); const u=urlFor(base, paths, 'list');
+    const d = await httpJson(u); let arr=[];
+    if(Array.isArray(d?.dates)) arr=d.dates; else if(Array.isArray(d?.days)) arr=d.days; else if(Array.isArray(d)) arr=d;
+    return { ok:true, dates: arr };
+  }catch(e){ return { ok:false, reason:String(e?.message||e), dates:[] } }
+});
+
+// ---------------- IPC utils (open, copy, folder) + legacy aliases ----------------
+ipcMain.handle('chronos:openExternal', async (_e, { url })=>{ try{ await shell.openExternal(url); return { ok:true }; }catch(e){ return { ok:false, reason:String(e?.message||e) } }});
+ipcMain.handle('app:open-external', async (_e, url)=>{ try{ await shell.openExternal(url); return { ok:true }; }catch(e){ return { ok:false, err:String(e) } }}); // legacy
+
+ipcMain.handle('chronos:copyText', async (_e, { text })=>{ try{ clipboard.writeText(text||''); return { ok:true }; }catch(e){ return { ok:false, reason:String(e?.message||e) } }});
+ipcMain.handle('chronos:chooseFolder', async ()=>{ try{
+  const w=BrowserWindow.getFocusedWindow(); const r=await dialog.showOpenDialog(w,{properties:['openDirectory','createDirectory'],title:'Choose download folder'});
+  if(r.canceled || !r.filePaths?.[0]) return { ok:false };
+  return { ok:true, folder: (downloadFolder = r.filePaths[0]) };
+}catch(e){ return { ok:false, reason:String(e?.message||e) } }});
+ipcMain.handle('chronos:choose-folder', async ()=>{ // legacy alias
+  const r = await ipcMain.invoke('chronos:chooseFolder'); return r;
+});
+
+// ---------------- URL helpers + legacy aliases ----------------
+ipcMain.handle('chronos:dlUrl', async (_e, { base, date, name })=>{
+  try{ if(!base||!date||!name) throw new Error('Missing base/date/name');
+    return `${base}/dl?f=/exp/${encodeURIComponent(date)}/${encodeURIComponent(name)}`;
+  }catch{ return '' }
+});
+ipcMain.handle('chronos:zipUrl', async (_e, { base, date })=>{
+  try{ if(!base||!date) throw new Error('Missing base/date');
+    return `${base}/zip?date=${encodeURIComponent(date)}`;
+  }catch{ return '' }
+});
+// legacy aliases with hyphens
+ipcMain.handle('chronos:dl-url', (_e, base, date, name)=> `${base}/dl?f=/exp/${date}/${encodeURIComponent(name)}`);
+ipcMain.handle('chronos:zip-url', (_e, base, date)=> `${base}/zip?date=${encodeURIComponent(date)}`);
+
+// ---------------- Delete file/date ----------------
+ipcMain.handle('chronos:rmFile', async (_e, { base, fullPath })=>{
+  try{
+    if(!base||!fullPath) throw new Error('Missing base or path');
+    const url = `${base}/api/rm?f=${encodeURIComponent(fullPath)}`; // keep old semantics
+    const r = await httpJson(url);
+    return r?.ok ? { ok:true } : { ok:false, reason: r? JSON.stringify(r) : 'fail' };
+  }catch(e){ return { ok:false, reason:String(e?.message||e) } }
+});
+ipcMain.handle('chronos:rmDate', async (_e, base, date)=>{ // legacy style
+  try{ const url = `${base}/api/rm?date=${encodeURIComponent(date)}`; return await httpJson(url); }
+  catch(e){ return { ok:false, err:String(e) } }
+});
+
+// ---------------- Downloader (accept href OR legacy /exp path) + legacy alias ----------------
+/** [2026-01-30 23:59 CET] buildDownloadTask — supports absolute /dl?f=… and legacy /exp/... */
+function buildDownloadTask(base, entry) {
+  const s = String(entry || '');
+
+  // Case 1: absolute URL (e.g., http://<base>/dl?f=/exp/2026-01-28/file.csv)
+  if (/^https?:\/\//i.test(s)) {
+    const u = new URL(s);
+
+    // If it's the firmware download endpoint, derive the filename from the `f` param
+    if (u.pathname.replace(/\/+$/,'') === '/dl') {
+      const f = u.searchParams.get('f') || '';
+      const clean = f.replace(/^\/+/, '');                    // drop leading slash
+      const rel   = clean.startsWith('exp/') ? clean.slice(4) // exp/2026-01-28/file.csv -> 2026-01-28/file.csv
+                                             : clean || 'file.bin';
+      const name  = decodeURIComponent(rel.split('/').pop() || 'file.bin');
+      return { url: u.toString(), label: name, dest: rel };   // keep day subfolder
+    }
+
+    // Any other absolute link → use the last path segment as the filenames
+    const name = decodeURIComponent(u.pathname.split('/').pop() || 'file.bin');
+    return { url: u.toString(), label: name, dest: name };
+  }
+
+  // Case 2: legacy relative path (/exp/2026-01-28/file.csv)
+  const f = s;
+  const name = decodeURIComponent(f.split('/').pop() || 'file.bin');
+  const rel  = f.startsWith('/exp/') ? f.slice('/exp/'.length) : name; // 2026-01-28/file.csv
+  return { url: `${base}/dl?f=${encodeURIComponent(f)}`, label: name, dest: rel };
+}
+
+ipcMain.handle('chronos:downloadSelected', async (_evt, payload)=>{
+  try{
+    const { base, days = [], files = [], folder } = payload || {};
+    const root = folder || downloadFolder || app.getPath('downloads');
+    await fsp.mkdir(root, { recursive:true });
+
+    const tasks = [];
+
+    // Day ZIPs (old behavior: /zip?date=YYYY-MM-DD)
+    for (const d of days) tasks.push({ url: `${base}/zip?date=${encodeURIComponent(d)}`, label: `Chronos_${d}.zip`, dest: `Chronos_${d}.zip` });
+
+    // Individual files (accept absolute or /exp/..)
+    for (const entry of files) tasks.push(buildDownloadTask(base, entry));
+
+    const total = tasks.length; let done = 0;
+    for (const t of tasks){
+      const out = path.join(root, t.dest);
+      await streamToFile(t.url, out, t.label);
+      done++; if (mainWindow) mainWindow.webContents.send('chronos:downloadStep', { done, total, label: t.label });
+    }
+    return { ok:true, count: tasks.length, folder: root };
+  }catch(e){ return { ok:false, reason:String(e?.message||e) } }
+});
+
+// legacy alias with hyphenated channel name
+ipcMain.handle('chronos:download-selected', async (_e, payload)=> ipcMain.invoke('chronos:downloadSelected', payload));

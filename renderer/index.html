@@ -1,13 +1,12 @@
 <!doctype html>
-<!-- [Updated 2026-01-30 20:47 CET] Renderer UI — i18n hooks, CSP for private LAN, diagnostics card, accessibility, Fluent-style polish -->
+<!-- [Updated 2026-01-30 21:20 CET] Fluent UI pass: unified icons, i18n hooks, Diagnostics refresh, accessibility -->
 <html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Chronos — Desktop</title>
-  <!-- CSP: allow private-network connects for device URLs; keep tight defaults -->
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' http://127.0.0.1:* http://localhost:* http://192.168.0.0/16 http://10.0.0.0/8 http://172.16.0.0/12; object-src 'none'; base-uri 'none'">
+  <!-- CSP kept tight; renderer doesn't fetch local JSON directly (preload provides readLocale) -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' http: https:; object-src 'none'; base-uri 'none'">
   <link rel="stylesheet" href="./style.css"/>
 </head>
 <body>
@@ -21,12 +20,13 @@
     </div>
     <div class="right">
       <div class="chip status-off" id="status" role="status" aria-live="polite" data-i18n="status.off">Chronos: Not available</div>
+      <label class="visually-hidden" for="lang">Language</label>
       <select id="lang" aria-label="Language" title="Language">
-        <option value="en">EN</option>
+        <option value="en" selected>EN</option>
         <option value="hr">HR</option>
       </select>
-      <button id="densityToggle" class="icon-btn" title="Toggle density" aria-label="Toggle density">⤢</button>
-      <button id="themeToggle" class="icon-btn" title="Theme" aria-label="Theme">🌙</button>
+      <button id="densityToggle" class="icon-btn" title="Toggle density" aria-label="Toggle density"><span class="i i-dense"></span></button>
+      <button id="themeToggle" class="icon-btn" title="Theme" aria-label="Theme"><span class="i i-moon"></span></button>
     </div>
   </header>
 
@@ -59,11 +59,11 @@
       <div class="commandbar">
         <div class="group">
           <div class="segment">
-            <button id="refresh" class="btn" title="Refresh list"><span class="i i-refresh"></span><span data-i18n="actions.refresh">Refresh</span></button>
-            <button id="expand"  class="btn" title="Expand all"><span class="i i-expand"></span><span data-i18n="actions.expand">Expand</span></button>
-            <button id="collapse" class="btn" title="Collapse all"><span class="i i-collapse"></span><span data-i18n="actions.collapse">Collapse</span></button>
-            <button id="selectAll" class="btn" title="Select all"><span class="i i-selectall"></span><span data-i18n="actions.selectAll">Select all</span></button>
-            <button id="clearSel"  class="btn" title="Clear selection"><span class="i i-clear"></span><span data-i18n="actions.clear">Clear</span></button>
+            <button id="refresh" class="btn" title="Refresh list"><span class="i i-arrow-sync"></span><span data-i18n="actions.refresh">Refresh</span></button>
+            <button id="expand"  class="btn" title="Expand all"><span class="i i-chevron-down"></span><span data-i18n="actions.expand">Expand</span></button>
+            <button id="collapse" class="btn" title="Collapse all"><span class="i i-chevron-up"></span><span data-i18n="actions.collapse">Collapse</span></button>
+            <button id="selectAll" class="btn" title="Select all"><span class="i i-select-all"></span><span data-i18n="actions.selectAll">Select all</span></button>
+            <button id="clearSel"  class="btn" title="Clear selection"><span class="i i-erase"></span><span data-i18n="actions.clear">Clear</span></button>
           </div>
         </div>
         <div class="group right">
@@ -77,7 +77,7 @@
           <div class="divider"></div>
           <button id="chooseFolder" class="btn ghost"><span class="i i-folder"></span><span data-i18n="actions.chooseFolder">Choose folder…</span></button>
           <span id="folderBadge" class="badge hidden"></span>
-          <button id="downloadSel" class="btn primary"><span class="i i-download"></span><span data-i18n="actions.downloadSelected">Download selected</span></button>
+          <button id="downloadSel" class="btn primary"><span class="i i-arrow-download"></span><span data-i18n="actions.downloadSelected">Download selected</span></button>
           <button id="deleteSel" class="btn danger" title="Delete selected"><span class="i i-delete"></span><span data-i18n="actions.deleteSelected">Delete selected</span></button>
         </div>
       </div>
@@ -94,12 +94,21 @@
     </section>
 
     <section id="viewDiag" class="hidden">
-      <div class="card">
-        <h3 data-i18n="diag.summary">Summary</h3>
+      <div class="card diag">
+        <div class="diag-head">
+          <h3 data-i18n="diag.summary">Summary</h3>
+          <div class="diag-actions">
+            <button id="diagRefresh" class="btn"><span class="i i-arrow-sync"></span><span data-i18n="actions.refresh">Refresh</span></button>
+            <button id="diagCopy" class="btn ghost"><span class="i i-copy"></span><span data-i18n="ctx.copy">Copy link</span></button>
+          </div>
+        </div>
         <div class="kv">
           <div><span>Base</span><b id="diagBaseText"></b></div>
           <div><span>Status</span><b id="diagStatusText"></b></div>
           <div><span>Version</span><b id="diagVersionText"></b></div>
+          <div><span>Storage</span><b id="diagStorageText"></b></div>
+          <div><span>Items</span><b id="diagItemsText"></b></div>
+          <div><span>Last check</span><b id="diagTimeText"></b></div>
         </div>
       </div>
     </section>

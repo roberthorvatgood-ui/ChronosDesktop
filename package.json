@@ -1,16 +1,18 @@
 {
   "name": "chronos-desktop",
-  "version": "1.2.10",
-  "description": "Chronos — Electron desktop (context menu, multi-select, i18n persistence, theming tokens, installer)",
+  "version": "1.2.12",
+  "description": "Chronos \u2014 Electron desktop (autodetect build)",
   "main": "main.js",
   "private": true,
   "scripts": {
     "start": "electron .",
+    "start:devtools": "cross-env OPEN_DEVTOOLS=1 electron .",
     "dist": "electron-builder"
   },
   "devDependencies": {
     "electron": "^40.1.0",
-    "electron-builder": "^26.6.0"
+    "electron-builder": "^26.6.0",
+    "cross-env": "^7.0.3"
   },
   "build": {
     "appId": "com.didakta.chronos",
