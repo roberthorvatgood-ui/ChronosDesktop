@@ -454,7 +454,7 @@ html[data-theme='light'] .day{
   border-radius: 6px; padding: 10px 12px; margin: 0;
   font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
   font-size: 12px; line-height: 1.55;
-  max-height: 480px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+  max-height: 480px; overflow: auto; white-space: pre-wrap; word-break: break-word;
   tab-size: 4;
 }
 html[data-theme='light'] .log-output {

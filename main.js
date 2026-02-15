@@ -261,6 +261,7 @@ ipcMain.handle('chronos:logClear', async (_e, { base }) => {
   try {
     if (!base) throw new Error('Missing base');
     const res = await httpGet(`${base}/api/log/clear`, { timeoutMs: 5000 });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return { ok: true };
   } catch (e) { return { ok: false, reason: String(e?.message || e) }; }
 });

@@ -661,7 +661,12 @@ ${t('diag.checked','Checked')}: ${(el.diagTimeText&&el.diagTimeText.textContent)
       const lv = await window.chronos.logLevel(base);
       if (lv && lv.ok) {
         const names = ['DEBUG','INFO','WARN','ERROR','FATAL'];
-        logEl.deviceLevel.textContent = `${t('log.deviceLevel','Device level')}: ${names[lv.level] || '?'}`;
+        const level = lv.level;
+        if (level >= 0 && level < names.length) {
+          logEl.deviceLevel.textContent = `${t('log.deviceLevel','Device level')}: ${names[level]}`;
+        } else {
+          logEl.deviceLevel.textContent = `${t('log.deviceLevel','Device level')}: ?`;
+        }
       }
     } catch {}
   }
@@ -688,8 +693,18 @@ ${t('diag.checked','Checked')}: ${(el.diagTimeText&&el.diagTimeText.textContent)
 
   logEl.copyBtn?.addEventListener('click', async () => {
     const text = logRawLines.map(p => p.raw).join('\n');
-    try { await navigator.clipboard.writeText(text); } catch { window.chronos.copyText(text); }
-    showToast(t('toast.copied', 'Link copied'));
+    try { 
+      await navigator.clipboard.writeText(text);
+      showToast(t('toast.copied', 'Link copied'));
+    } catch { 
+      try {
+        window.chronos.copyText(text);
+        showToast(t('toast.copied', 'Link copied'));
+      } catch (e) {
+        console.error('Copy failed:', e);
+        showToast('Copy failed');
+      }
+    }
   });
 
   logEl.downloadBtn?.addEventListener('click', () => {
