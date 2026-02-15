@@ -18,4 +18,8 @@ contextBridge.exposeInMainWorld('chronos', {
   showInFolder: (fullPath) => ipcRenderer.invoke('chronos:showInFolder', { path: fullPath }),
   onDownloadProgress: (cb) => { const ch='chronos:downloadProgress'; ipcRenderer.removeAllListeners(ch); ipcRenderer.on(ch, (_e,d)=> cb && cb(d)); },
   onDownloadStep:     (cb) => { const ch='chronos:downloadStep';     ipcRenderer.removeAllListeners(ch); ipcRenderer.on(ch, (_e,d)=> cb && cb(d)); },
+  // Log API
+  logFetch: (base, tail) => ipcRenderer.invoke('chronos:logFetch', { base, tail }),
+  logClear: (base)       => ipcRenderer.invoke('chronos:logClear', { base }),
+  logLevel: (base, set)  => ipcRenderer.invoke('chronos:logLevel', { base, set }),
 });

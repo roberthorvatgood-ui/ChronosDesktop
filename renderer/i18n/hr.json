@@ -77,5 +77,20 @@
   "mode.pdf": "PDF",
   "mode.zip": "ZIP",
   "mode.raw": "RAW",
-  "mode.meas": "Mjerenje"
+  "mode.meas": "Mjerenje",
+
+  "log.title": "Dnevnik uređaja",
+  "log.all": "Sve razine",
+  "log.tail": "Zadnjih",
+  "log.fetch": "Dohvati",
+  "log.autoRefresh": "Automatsko osvježavanje",
+  "log.autoStop": "Zaustavi auto",
+  "log.copy": "Kopiraj",
+  "log.download": "Preuzmi",
+  "log.clear": "Obriši",
+  "log.lines": "redaka",
+  "log.empty": "Nema podataka dnevnika",
+  "log.deviceLevel": "Razina uređaja",
+  "log.confirmClear": "Obrisati sve zapise na uređaju?",
+  "log.cleared": "Dnevnik obrisan"
 }

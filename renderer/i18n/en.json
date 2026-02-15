@@ -77,5 +77,20 @@
   "mode.pdf": "PDF",
   "mode.zip": "ZIP",
   "mode.raw": "Raw",
-  "mode.meas": "Measurement"
+  "mode.meas": "Measurement",
+
+  "log.title": "Device Log",
+  "log.all": "All levels",
+  "log.tail": "Tail",
+  "log.fetch": "Fetch",
+  "log.autoRefresh": "Auto-refresh",
+  "log.autoStop": "Stop auto",
+  "log.copy": "Copy",
+  "log.download": "Download",
+  "log.clear": "Clear",
+  "log.lines": "lines",
+  "log.empty": "No log data",
+  "log.deviceLevel": "Device level",
+  "log.confirmClear": "Clear all logs on the device?",
+  "log.cleared": "Log cleared"
 }

@@ -572,6 +572,160 @@ ${t('diag.checked','Checked')}: ${(el.diagTimeText&&el.diagTimeText.textContent)
     });
   }
 
+  // ---------- Device Log Viewer ----------
+  let logAutoInterval = null;
+  let logRawLines = [];
+  const LEVEL_ORDER = { D:0, I:1, W:2, E:3, F:4 };
+
+  const logEl = {
+    output:       document.getElementById('logOutput'),
+    levelFilter:  document.getElementById('logLevelFilter'),
+    search:       document.getElementById('logSearch'),
+    tailCount:    document.getElementById('logTailCount'),
+    fetchBtn:     document.getElementById('logFetch'),
+    autoToggle:   document.getElementById('logAutoToggle'),
+    copyBtn:      document.getElementById('logCopy'),
+    downloadBtn:  document.getElementById('logDownload'),
+    clearBtn:     document.getElementById('logClear'),
+    lineCount:    document.getElementById('logLineCount'),
+    deviceLevel:  document.getElementById('logDeviceLevel'),
+  };
+
+  function parseLogLine(line) {
+    const m = line.match(/^(.+?)\s+\[([DIWEF])\]\s+\[(.+?)\]\s+(.*)$/);
+    if (!m) return { ts:'', level:'?', tag:'', msg: line, raw: line };
+    return { ts: m[1], level: m[2], tag: m[3], msg: m[4], raw: line };
+  }
+
+  function logLevelClass(lv) {
+    switch (lv) {
+      case 'D': return 'log-debug';
+      case 'I': return 'log-info';
+      case 'W': return 'log-warn';
+      case 'E': return 'log-error';
+      case 'F': return 'log-fatal';
+      default:  return '';
+    }
+  }
+
+  function filterAndRenderLog() {
+    const levelThreshold = logEl.levelFilter?.value || 'all';
+    const query = (logEl.search?.value || '').trim().toLowerCase();
+
+    const filtered = logRawLines.filter(parsed => {
+      if (levelThreshold !== 'all') {
+        const minOrd = LEVEL_ORDER[levelThreshold] ?? 0;
+        const lineOrd = LEVEL_ORDER[parsed.level] ?? -1;
+        if (lineOrd < minOrd) return false;
+      }
+      if (query && !parsed.raw.toLowerCase().includes(query)) return false;
+      return true;
+    });
+
+    if (!logEl.output) return;
+
+    const html = filtered.map(p => {
+      const cls = logLevelClass(p.level);
+      const escaped = p.raw
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      return `<span class="${cls}">${escaped}</span>`;
+    }).join('\n');
+
+    logEl.output.innerHTML = html;
+    logEl.lineCount.textContent = `${filtered.length} / ${logRawLines.length} ${t('log.lines','lines')}`;
+    logEl.output.scrollTop = logEl.output.scrollHeight;
+  }
+
+  async function fetchDeviceLog() {
+    const base = Store.getBase() || (el.base?.value || '').trim() || 'http://192.168.4.1';
+    const tail = parseInt(logEl.tailCount?.value || '200', 10) || 200;
+
+    try {
+      const r = await window.chronos.logFetch(base, tail);
+      if (r && r.ok && r.text) {
+        const lines = r.text.split('\n').filter(l => l.trim());
+        logRawLines = lines.map(parseLogLine);
+        filterAndRenderLog();
+      } else {
+        logEl.output.textContent = r?.reason || t('log.empty', 'No log data');
+        logRawLines = [];
+        logEl.lineCount.textContent = '0 ' + t('log.lines', 'lines');
+      }
+    } catch (e) {
+      logEl.output.textContent = `Error: ${e}`;
+    }
+
+    try {
+      const lv = await window.chronos.logLevel(base);
+      if (lv && lv.ok) {
+        const names = ['DEBUG','INFO','WARN','ERROR','FATAL'];
+        logEl.deviceLevel.textContent = `${t('log.deviceLevel','Device level')}: ${names[lv.level] || '?'}`;
+      }
+    } catch {}
+  }
+
+  logEl.fetchBtn?.addEventListener('click', fetchDeviceLog);
+  logEl.levelFilter?.addEventListener('change', filterAndRenderLog);
+  logEl.search?.addEventListener('input', filterAndRenderLog);
+
+  logEl.autoToggle?.addEventListener('click', () => {
+    if (logAutoInterval) {
+      clearInterval(logAutoInterval);
+      logAutoInterval = null;
+      logEl.autoToggle.classList.remove('primary');
+      logEl.autoToggle.classList.add('ghost');
+      logEl.autoToggle.innerHTML = `<span>${t('log.autoRefresh','Auto-refresh')}</span>`;
+    } else {
+      fetchDeviceLog();
+      logAutoInterval = setInterval(fetchDeviceLog, 3000);
+      logEl.autoToggle.classList.remove('ghost');
+      logEl.autoToggle.classList.add('primary');
+      logEl.autoToggle.innerHTML = `<span>${t('log.autoStop','Stop auto')}</span>`;
+    }
+  });
+
+  logEl.copyBtn?.addEventListener('click', async () => {
+    const text = logRawLines.map(p => p.raw).join('\n');
+    try { await navigator.clipboard.writeText(text); } catch { window.chronos.copyText(text); }
+    showToast(t('toast.copied', 'Link copied'));
+  });
+
+  logEl.downloadBtn?.addEventListener('click', () => {
+    const text = logRawLines.map(p => p.raw).join('\n');
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chronos_log_${new Date().toISOString().slice(0,19).replace(/[T:]/g,'-')}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  logEl.clearBtn?.addEventListener('click', async () => {
+    const ok = confirm(t('log.confirmClear', 'Clear all logs on the device?'));
+    if (!ok) return;
+    const base = Store.getBase() || 'http://192.168.4.1';
+    try {
+      const r = await window.chronos.logClear(base);
+      if (r && r.ok) {
+        showToast(t('log.cleared', 'Log cleared'));
+        logRawLines = [];
+        filterAndRenderLog();
+      }
+    } catch (e) { console.error(e); }
+  });
+
+  // Auto-fetch log when switching to Diagnostics tab
+  const origActivateTab = activateTab;
+  activateTab = function(which) {
+    origActivateTab(which);
+    if (which === 'diag' && logRawLines.length === 0) {
+      fetchDeviceLog();
+    }
+  };
+
   // ---------- Init ----------
   (async function init(){
     const lang = Store.getLang() || 'en';

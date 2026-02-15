@@ -246,6 +246,36 @@ ipcMain.handle('chronos:rmDate', async (_e, base, date) => {
   catch (e) { return { ok: false, err: String(e) }; }
 });
 
+/* ---------------- Device Log API ------------------------------------------ */
+ipcMain.handle('chronos:logFetch', async (_e, { base, tail }) => {
+  try {
+    if (!base) throw new Error('Missing base');
+    const url = tail ? `${base}/api/log?tail=${tail}` : `${base}/api/log`;
+    const res = await httpGet(url, { timeoutMs: 10000 });
+    const text = await res.text();
+    return { ok: true, text };
+  } catch (e) { return { ok: false, reason: String(e?.message || e), text: '' }; }
+});
+
+ipcMain.handle('chronos:logClear', async (_e, { base }) => {
+  try {
+    if (!base) throw new Error('Missing base');
+    const res = await httpGet(`${base}/api/log/clear`, { timeoutMs: 5000 });
+    return { ok: true };
+  } catch (e) { return { ok: false, reason: String(e?.message || e) }; }
+});
+
+ipcMain.handle('chronos:logLevel', async (_e, { base, set }) => {
+  try {
+    if (!base) throw new Error('Missing base');
+    const url = (set !== undefined && set !== null)
+      ? `${base}/api/log/level?set=${set}`
+      : `${base}/api/log/level`;
+    const data = await httpJson(url, { timeoutMs: 5000 });
+    return { ok: true, level: data?.level ?? -1 };
+  } catch (e) { return { ok: false, reason: String(e?.message || e), level: -1 }; }
+});
+
 /* ---------------- Download task builder (unchanged logic) ----------------- */
 function buildDownloadTask(base, entry) {
   const s = String(entry || '');

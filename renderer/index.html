@@ -111,6 +111,38 @@
           <div><span>Last check</span><b id="diagTimeText"></b></div>
         </div>
       </div>
+
+      <!-- ═══════ Device Log Panel ═══════ -->
+      <div class="card log-panel" style="margin-top:12px">
+        <div class="log-head">
+          <h3 data-i18n="log.title">Device Log</h3>
+          <div class="log-controls">
+            <select id="logLevelFilter" title="Filter by level" aria-label="Filter by level">
+              <option value="all" data-i18n="log.all">All levels</option>
+              <option value="D">DEBUG</option>
+              <option value="I" selected>INFO+</option>
+              <option value="W">WARN+</option>
+              <option value="E">ERROR+</option>
+              <option value="F">FATAL</option>
+            </select>
+            <input id="logSearch" class="search" placeholder="Filter text…" style="width:180px" aria-label="Search log"/>
+            <label class="log-tail-label" title="Lines to fetch">
+              <span data-i18n="log.tail">Tail</span>
+              <input id="logTailCount" type="number" value="200" min="10" max="5000" step="50" style="width:64px"/>
+            </label>
+            <button id="logFetch" class="btn"><span class="i i-arrow-sync"></span><span data-i18n="log.fetch">Fetch</span></button>
+            <button id="logAutoToggle" class="btn ghost"><span data-i18n="log.autoRefresh">Auto-refresh</span></button>
+            <button id="logCopy" class="btn ghost"><span class="i i-copy"></span><span data-i18n="log.copy">Copy</span></button>
+            <button id="logDownload" class="btn ghost"><span class="i i-arrow-download"></span><span data-i18n="log.download">Download</span></button>
+            <button id="logClear" class="btn danger"><span class="i i-delete"></span><span data-i18n="log.clear">Clear</span></button>
+          </div>
+        </div>
+        <div class="log-meta">
+          <span id="logLineCount" class="muted small">0 lines</span>
+          <span id="logDeviceLevel" class="muted small"></span>
+        </div>
+        <pre id="logOutput" class="log-output" tabindex="0"></pre>
+      </div>
     </section>
   </main>
 

@@ -422,3 +422,61 @@ body.density-compact .meter { height:8px; }
 html[data-theme='light'] .day{
   box-shadow: 0 2px 10px rgba(0,0,0,.06);
 }
+/* ============ DEVICE LOG PANEL ============================================ */
+
+.log-panel { overflow: hidden; }
+
+.log-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 8px; flex-wrap: wrap; gap: 8px;
+}
+.log-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
+
+.log-controls {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.log-controls select,
+.log-controls input[type="number"] {
+  background: var(--surface); color: inherit; border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 8px; min-height: 32px; font-size: 13px;
+}
+.log-tail-label {
+  display: flex; align-items: center; gap: 4px; font-weight: 600; font-size: 12px;
+  color: var(--muted);
+}
+
+.log-meta {
+  display: flex; gap: 16px; margin-bottom: 6px;
+}
+
+.log-output {
+  background: #0a0c10; color: #c8ccd0; border: 1px solid var(--border);
+  border-radius: 6px; padding: 10px 12px; margin: 0;
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 12px; line-height: 1.55;
+  max-height: 480px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+  tab-size: 4;
+}
+html[data-theme='light'] .log-output {
+  background: #f8f9fb; color: #1a1d24;
+}
+
+/* Log level coloring */
+.log-output .log-debug { color: #7c8a96; }
+.log-output .log-info  { color: #54aeff; }
+.log-output .log-warn  { color: #d4a72c; }
+.log-output .log-error { color: #f85149; font-weight: 700; }
+.log-output .log-fatal { color: #ff4444; font-weight: 900; background: rgba(255,68,68,.12); display: inline-block; width: 100%; }
+
+html[data-theme='light'] .log-output .log-debug { color: #8b949e; }
+html[data-theme='light'] .log-output .log-info  { color: #0969da; }
+html[data-theme='light'] .log-output .log-warn  { color: #9a6700; }
+html[data-theme='light'] .log-output .log-error { color: #cf222e; font-weight: 700; }
+html[data-theme='light'] .log-output .log-fatal { color: #a40e26; font-weight: 900; background: rgba(207,34,46,.08); }
+
+/* Auto-refresh active indicator */
+.log-controls .btn.primary { animation: log-pulse 2s ease-in-out infinite; }
+@keyframes log-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
