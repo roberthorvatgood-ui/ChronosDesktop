@@ -1,4 +1,6 @@
-// [Updated 2026-01-31 19:20 CET]
+// [Updated 2026-02-15 CET]
+// Fix: Retry logic for /api/list (ESP32 connection reset)
+// Fix: Concurrency guard prevents overlapping device requests
 // Fix: Diagnostics header labels localized (Base/Storage/Status/Items/Version/Last check)
 // Fix: Diagnostics buttons (Run/Refresh/Copy) re-localize on language change
 // Keep: downloads with Save dialogs, sort-on-change, theme/density toggles, logo click,
@@ -33,6 +35,7 @@
   let I18N = {};
   let currentStatusState='off';
   let diagAutoRunDone = false;
+  let deviceRequestInFlight = false; // concurrency guard for ESP32 single-threaded server
 
   // ---------- i18n ----------
   async function loadLocale(lang){
@@ -88,7 +91,7 @@
     for (const p of pairs){
       const node = el[p.id];
       if (!node || !node.parentElement) continue;
-      const labelSpan = node.parentElement.querySelector('span'); // structure: <span>Label</span><b id="...">
+      const labelSpan = node.parentElement.querySelector('span');
       if (labelSpan) labelSpan.textContent = t(p.key, p.fallback);
     }
   }
@@ -103,15 +106,12 @@
 
   // Apply i18n to top-area controls, tabs, placeholders, etc.
   function applyI18nTop(){
-    // Brand
     const bt = document.querySelector('.brand-title'); if(bt) bt.textContent = t('app.title', bt.textContent);
     const bs = document.querySelector('.brand-sub');   if(bs) bs.textContent = t('app.subtitle', bs.textContent);
 
-    // Tabs
     if(el.tabExports) el.tabExports.textContent = t('tabs.exports','Exports');
     if(el.tabDiag)    el.tabDiag.textContent    = t('tabs.diagnostics','Diagnostics');
 
-    // Buttons / actions
     if(el.save)        el.save.textContent        = t('actions.saveCheck','Save & Check');
     if(el.reset)       el.reset.textContent       = t('actions.reset','Reset');
     if(el.refresh)     el.refresh.textContent     = t('actions.refresh','Refresh');
@@ -123,10 +123,8 @@
     if(el.downloadSel) el.downloadSel.textContent = t('actions.downloadSelected','Download selected');
     if(el.deleteSel)   el.deleteSel.textContent   = t('actions.deleteSelected','Delete selected');
 
-    // Placeholders
     if(el.search) el.search.placeholder = t('search.placeholder','Search…');
 
-    // Sort options
     if (el.sort) {
       const opt = (val) => el.sort.querySelector(`option[value="${val}"]`);
       const o1 = opt('date-desc'); if (o1) o1.textContent = t('sort.dateNewest','Date (newest)');
@@ -135,17 +133,13 @@
       const o4 = opt('name-desc'); if (o4) o4.textContent = t('sort.nameDesc','Name Z–A');
     }
 
-    // Generic data-i18n pass (if present in HTML)
     document.querySelectorAll('[data-i18n]').forEach(n=>{
       const k=n.getAttribute('data-i18n');
       n.textContent = t(k, n.textContent);
     });
 
-    // Diagnostics header + buttons
     i18nDiagnosticsHeaderLabels();
     i18nDiagnosticsControls();
-
-    // Status chip relocalization
     setStatus(currentStatusState);
   }
 
@@ -164,6 +158,7 @@
   }
 
   async function loadStatus(base){
+    deviceRequestInFlight = true;
     try{
       const s=await window.chronos.status(base, Store.getPaths());
       if(!s || !s.ok) throw 0;
@@ -178,10 +173,13 @@
     } catch{
       el.totalText.textContent='–'; el.usedText.textContent='–'; el.usedPct.textContent='0%'; el.meterFill.style.width='0%';
       setStatus('off');
+    } finally {
+      deviceRequestInFlight = false;
     }
   }
 
   async function loadList(base){
+    deviceRequestInFlight = true;
     el.listSkeleton.classList.remove('hidden');
     try{
       const data=await window.chronos.list(base, Store.getPaths());
@@ -190,7 +188,10 @@
       el.itemsCount.textContent= rawDays.reduce((a,d)=>a+d.files.length,0);
       el.daysCount.textContent= rawDays.length;
       renderList();
-    } finally { el.listSkeleton.classList.add('hidden'); }
+    } finally {
+      el.listSkeleton.classList.add('hidden');
+      deviceRequestInFlight = false;
+    }
   }
 
   function renderList(){
@@ -230,7 +231,6 @@
 
       const right=document.createElement('div'); right.className='day-actions';
 
-      // ZIP per day — in-app downloader (Save dialog)
       const zip=document.createElement('button');
       zip.className='btn ghost';
       zip.innerHTML=`<span class="i i-arrow-download"></span><span>ZIP</span>`;
@@ -273,7 +273,6 @@
           chk.addEventListener('click',e=>e.stopPropagation());
           chk.addEventListener('change',()=>{ if(chk.checked) selectedFiles.add(pathExp); else selectedFiles.delete(pathExp); updateSelectedBadge(); });
 
-          // File click — in-app downloader (Save dialog)
           const link=document.createElement('a'); link.className='file-name'; link.textContent=name||'(unnamed)'; link.href = pathExp;
           link.addEventListener('click', async (e)=>{
             e.preventDefault(); e.stopPropagation();
@@ -285,7 +284,6 @@
             }catch(err){ console.error(err); showToast(t('toast.dlFail','Download failed')); }
           });
 
-          // File meta: localized mode + single size (no duplication)
           const meta=document.createElement('span'); meta.className='file-meta';
           const parts = [];
           if (f.mode) {
@@ -370,12 +368,12 @@
     document.documentElement.setAttribute('lang', lang);
     recomputeFormatters(lang);
     await loadLocale(lang);
-    applyI18n(); // top/header/buttons/tabs/list/diagnostics
+    applyI18n();
     const base=Store.getBase() || (el.base.value||'').trim() || 'http://192.168.4.1';
     if (currentStatusState==='on') { await loadStatus(base); }
   });
 
-  el.sort?.addEventListener('change', ()=> { renderList(); }); // immediate re-sort
+  el.sort?.addEventListener('change', ()=> { renderList(); });
 
   // ---------- Diagnostics ----------
   function ensureDiagnosticsActions(){
@@ -388,7 +386,6 @@
       head.prepend(run);
       run.addEventListener('click', runDiagnostics);
     }
-    // Re-apply i18n to diagnostics action buttons
     i18nDiagnosticsControls();
 
     el.diagRefresh?.addEventListener('click', async ()=>{
@@ -445,7 +442,6 @@ ${t('diag.checked','Checked')}: ${(el.diagTimeText&&el.diagTimeText.textContent)
   }
 
   function renderDiagnostics(res){
-    // Localized labels for the diagnostics card
     const L = {
       base: t('diag.base','Base'),
       diagnostics: t('tabs.diagnostics','Diagnostics'),
@@ -484,14 +480,12 @@ ${t('diag.checked','Checked')}: ${(el.diagTimeText&&el.diagTimeText.textContent)
     `;
     host.setAttribute('data-json', JSON.stringify(res, null, 2));
 
-    // Update the small KV header too
     if(el.diagBaseText)    el.diagBaseText.textContent    = res.base || '';
     if(el.diagStatusText)  el.diagStatusText.textContent  = (res.checks.status?.ok ? t('toast.connected','Connected') : t('status.off','Chronos: Not available'));
     if(el.diagStorageText) el.diagStorageText.textContent = `${bytes(res.checks.status?.used||0)} / ${bytes(res.checks.status?.total||0)}`;
     if(el.diagItemsText)   el.diagItemsText.textContent   = `${res.checks.list?.items ?? '–'}`;
     if(el.diagTimeText)    el.diagTimeText.textContent    = nowText();
 
-    // Make sure header labels are in the right language
     i18nDiagnosticsHeaderLabels();
   }
 
@@ -547,6 +541,39 @@ ${t('diag.checked','Checked')}: ${(el.diagTimeText&&el.diagTimeText.textContent)
     }catch(e){ console.error(e); showToast(t('toast.dlFail','Download failed')); }
   });
 
+    el.deleteSel?.addEventListener('click', async ()=>{
+    if(!(selectedDays.size || selectedFiles.size)){ showToast(t('toast.nothingSelected','Nothing selected')); return; }
+
+    const totalCount = selectedDays.size + selectedFiles.size;
+    const ok = confirm(t('confirm.deleteSelected', `Delete ${totalCount} selected item(s)?`).replace('{n}', totalCount));
+    if(!ok) return;
+
+    const base = Store.getBase() || (el.base.value||'').trim() || 'http://192.168.4.1';
+    let deleted = 0;
+
+    // Delete selected days (entire date folders)
+    for(const date of selectedDays){
+      try{
+        const r = await window.chronos.rmDate(base, date);
+        if(r && r.ok) deleted++;
+      }catch(err){ console.error('rmDate failed:', date, err); }
+    }
+
+    // Delete individually selected files
+    for(const fp of selectedFiles){
+      try{
+        const r = await window.chronos.rmFile(base, fp);
+        if(r && r.ok) deleted++;
+      }catch(err){ console.error('rmFile failed:', fp, err); }
+    }
+
+    selectedDays.clear();
+    selectedFiles.clear();
+    updateSelectedBadge();
+    showToast(t('toast.deleted','Deleted') + ` (${deleted}/${totalCount})`);
+    await loadList(base);
+  });
+  
   if (window.chronos?.onDownloadProgress) {
     window.chronos.onDownloadProgress(({id,received,total})=>{
       el.progress.classList.add('is-visible');
@@ -639,6 +666,9 @@ ${t('diag.checked','Checked')}: ${(el.diagTimeText&&el.diagTimeText.textContent)
   }
 
   async function fetchDeviceLog() {
+    if (deviceRequestInFlight) return; // skip if list/status is loading
+    deviceRequestInFlight = true;
+
     const base = Store.getBase() || (el.base?.value || '').trim() || 'http://192.168.4.1';
     const tail = parseInt(logEl.tailCount?.value || '200', 10) || 200;
 
@@ -649,23 +679,26 @@ ${t('diag.checked','Checked')}: ${(el.diagTimeText&&el.diagTimeText.textContent)
         logRawLines = lines.map(parseLogLine);
         filterAndRenderLog();
       } else {
-        logEl.output.textContent = r?.reason || t('log.empty', 'No log data');
+        if (logEl.output) logEl.output.textContent = r?.reason || t('log.empty', 'No log data');
         logRawLines = [];
-        logEl.lineCount.textContent = '0 ' + t('log.lines', 'lines');
+        if (logEl.lineCount) logEl.lineCount.textContent = '0 ' + t('log.lines', 'lines');
       }
     } catch (e) {
-      logEl.output.textContent = `Error: ${e}`;
+      if (logEl.output) logEl.output.textContent = `Error: ${e}`;
+    } finally {
+      deviceRequestInFlight = false;
     }
 
+    // Fetch device log level (separate, lightweight request)
     try {
       const lv = await window.chronos.logLevel(base);
       if (lv && lv.ok) {
         const names = ['DEBUG','INFO','WARN','ERROR','FATAL'];
         const level = lv.level;
         if (level >= 0 && level < names.length) {
-          logEl.deviceLevel.textContent = `${t('log.deviceLevel','Device level')}: ${names[level]}`;
+          if (logEl.deviceLevel) logEl.deviceLevel.textContent = `${t('log.deviceLevel','Device level')}: ${names[level]}`;
         } else {
-          logEl.deviceLevel.textContent = `${t('log.deviceLevel','Device level')}: ?`;
+          if (logEl.deviceLevel) logEl.deviceLevel.textContent = `${t('log.deviceLevel','Device level')}: ?`;
         }
       }
     } catch {}
@@ -693,10 +726,10 @@ ${t('diag.checked','Checked')}: ${(el.diagTimeText&&el.diagTimeText.textContent)
 
   logEl.copyBtn?.addEventListener('click', async () => {
     const text = logRawLines.map(p => p.raw).join('\n');
-    try { 
+    try {
       await navigator.clipboard.writeText(text);
       showToast(t('toast.copied', 'Link copied'));
-    } catch { 
+    } catch {
       try {
         window.chronos.copyText(text);
         showToast(t('toast.copied', 'Link copied'));

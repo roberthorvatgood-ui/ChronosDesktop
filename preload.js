@@ -1,5 +1,4 @@
-
-// [Updated 2026-01-30 21:44 CET] Preload — adds discover() and paths override; keeps interface stable
+// [Updated 2026-02-15 CET] Preload — adds rmDate, logFetch/logClear/logLevel; keeps interface stable
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('chronos', {
   discover: (base) => ipcRenderer.invoke('chronos:discover', { base }),
@@ -9,6 +8,7 @@ contextBridge.exposeInMainWorld('chronos', {
   dlUrl:   (base, date, name) => ipcRenderer.invoke('chronos:dlUrl', { base, date, name }),
   zipUrl:  (base, date)       => ipcRenderer.invoke('chronos:zipUrl', { base, date }),
   rmFile:  (base, fullPath)   => ipcRenderer.invoke('chronos:rmFile', { base, fullPath }),
+  rmDate:  (base, date)       => ipcRenderer.invoke('chronos:rmDate', { base, date }),
   chooseFolder: () => ipcRenderer.invoke('chronos:chooseFolder'),
   downloadSelected: (payload) => ipcRenderer.invoke('chronos:downloadSelected', payload),
   openExternal: (url) => ipcRenderer.invoke('chronos:openExternal', { url }),
@@ -16,10 +16,9 @@ contextBridge.exposeInMainWorld('chronos', {
   readLocale: (lang) => ipcRenderer.invoke('chronos:readLocale', { lang }),
   localPathFor: (base, date, name) => ipcRenderer.invoke('chronos:localPathFor', { date, name }),
   showInFolder: (fullPath) => ipcRenderer.invoke('chronos:showInFolder', { path: fullPath }),
+  logFetch: (base, tail)   => ipcRenderer.invoke('chronos:logFetch', { base, tail }),
+  logClear: (base)         => ipcRenderer.invoke('chronos:logClear', { base }),
+  logLevel: (base, set)    => ipcRenderer.invoke('chronos:logLevel', { base, set }),
   onDownloadProgress: (cb) => { const ch='chronos:downloadProgress'; ipcRenderer.removeAllListeners(ch); ipcRenderer.on(ch, (_e,d)=> cb && cb(d)); },
   onDownloadStep:     (cb) => { const ch='chronos:downloadStep';     ipcRenderer.removeAllListeners(ch); ipcRenderer.on(ch, (_e,d)=> cb && cb(d)); },
-  // Log API
-  logFetch: (base, tail) => ipcRenderer.invoke('chronos:logFetch', { base, tail }),
-  logClear: (base)       => ipcRenderer.invoke('chronos:logClear', { base }),
-  logLevel: (base, set)  => ipcRenderer.invoke('chronos:logLevel', { base, set }),
 });

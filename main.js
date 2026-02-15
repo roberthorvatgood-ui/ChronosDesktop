@@ -186,12 +186,47 @@ ipcMain.handle('chronos:list', async (_evt, arg) => {
   try {
     const { base, paths } = normArgs(arg);
     const u = urlFor(base, paths, 'list');
-    const d = await httpJson(u);
+
+    // ESP32 often resets connection on large /api/list responses.
+    // Retry once with a longer timeout.
+    let d;
+    try {
+      d = await httpJson(u, { timeoutMs: 15000 });
+    } catch (e1) {
+      // First attempt failed — wait briefly, then retry
+      await new Promise(r => setTimeout(r, 500));
+      d = await httpJson(u, { timeoutMs: 20000 });
+    }
+
     let arr = [];
-    if (Array.isArray(d?.dates)) arr = d.dates; else if (Array.isArray(d?.days)) arr = d.days; else if (Array.isArray(d)) arr = d;
+    if (Array.isArray(d?.dates)) arr = d.dates;
+    else if (Array.isArray(d?.days)) arr = d.days;
+    else if (Array.isArray(d)) arr = d;
     return { ok: true, dates: arr };
   } catch (e) { return { ok: false, reason: String(e?.message || e), dates: [] }; }
 });
+
+/* ---------------- Auto-discover API paths --------------------------------- */
+ipcMain.handle('chronos:discover', async (_evt, { base }) => {
+  try {
+    if (!base) throw new Error('Missing base');
+    const hits = {};
+    const tryPath = async (key, candidates) => {
+      for (const p of candidates) {
+        try {
+          const url = `${base}${p}`;
+          const res = await httpGet(url, { timeoutMs: 3000 });
+          if (res.ok) { hits[key] = { path: p }; return; }
+        } catch {}
+      }
+    };
+    await tryPath('version', ['/api/version', '/version']);
+    await tryPath('status',  ['/api/status',  '/status']);
+    await tryPath('list',    ['/api/list',     '/list']);
+    return { ok: Object.keys(hits).length > 0, hits };
+  } catch (e) { return { ok: false, reason: String(e?.message || e), hits: {} }; }
+});
+
 
 /* ---------------- IPC utils (open/copy/folder) + legacy aliases ----------- */
 ipcMain.handle('chronos:openExternal', async (_e, { url }) => {
@@ -241,9 +276,22 @@ ipcMain.handle('chronos:rmFile', async (_e, { base, fullPath }) => {
     return r?.ok ? { ok: true } : { ok: false, reason: r ? JSON.stringify(r) : 'fail' };
   } catch (e) { return { ok: false, reason: String(e?.message || e) }; }
 });
-ipcMain.handle('chronos:rmDate', async (_e, base, date) => {
-  try { const url = `${base}/api/rm?date=${encodeURIComponent(date)}`; return await httpJson(url); }
-  catch (e) { return { ok: false, err: String(e) }; }
+ipcMain.handle('chronos:rmDate', async (_e, arg) => {
+  try {
+    // Support both legacy (base, date) and new { base, date } signatures
+    let base, date;
+    if (typeof arg === 'object' && arg !== null) {
+      base = arg.base;
+      date = arg.date;
+    } else {
+      base = arg;
+      date = arguments[2]; // legacy positional
+    }
+    if (!base || !date) throw new Error('Missing base or date');
+    const url = `${base}/api/rm?date=${encodeURIComponent(date)}`;
+    const r = await httpJson(url);
+    return r?.ok ? { ok: true } : { ok: false, reason: r ? JSON.stringify(r) : 'fail' };
+  } catch (e) { return { ok: false, reason: String(e?.message || e) }; }
 });
 
 /* ---------------- Device Log API ------------------------------------------ */
