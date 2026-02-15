@@ -169,7 +169,7 @@ html[data-theme='dark'] .sort{
 
 /* ============ COMMAND BAR & GROUPS ======================================== */
 
-.actions{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.actions{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
 .commandbar{
   display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;
   background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);

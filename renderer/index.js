@@ -215,7 +215,7 @@
     if(!days.length){
       const wrap=document.createElement('div'); wrap.className='card'; wrap.style.cssText='text-align:center;padding:24px';
       const t1=document.createElement('div'); t1.style.fontWeight='700'; t1.style.marginBottom='6px'; t1.textContent=t('list.empty','No data.');
-      const t2=document.createElement('div'); t2.className='muted'; t2.textContent='Try Refresh, adjust filters, or check your device URL.';
+      const t2=document.createElement('div'); t2.className='muted'; t2.textContent=t('Try Refresh, adjust filters, or check your device URL.');
       wrap.appendChild(t1); wrap.appendChild(t2); el.list.appendChild(wrap); return;
     }
 
@@ -662,7 +662,7 @@ ${t('diag.checked','Checked')}: ${(el.diagTimeText&&el.diagTimeText.textContent)
 
     logEl.output.innerHTML = html;
     logEl.lineCount.textContent = `${filtered.length} / ${logRawLines.length} ${t('log.lines','lines')}`;
-    logEl.output.scrollTop = logEl.output.scrollHeight;
+    logEl.output.scrollTop = 0;
   }
 
   async function fetchDeviceLog() {
@@ -675,7 +675,7 @@ ${t('diag.checked','Checked')}: ${(el.diagTimeText&&el.diagTimeText.textContent)
     try {
       const r = await window.chronos.logFetch(base, tail);
       if (r && r.ok && r.text) {
-        const lines = r.text.split('\n').filter(l => l.trim());
+        const lines = r.text.split('\n').filter(l => l.trim()).reverse();
         logRawLines = lines.map(parseLogLine);
         filterAndRenderLog();
       } else {

@@ -50,6 +50,7 @@
   "toast.dlDone": "Preuzimanje završeno",
 
   "list.empty": "Nema podataka.",
+  "list.emptyHint": "Pokušajte Osvježi, prilagodite filtere ili provjerite URL uređaja.",
   "ctx.open": "Otvori poveznicu",
   "ctx.copy": "Kopiraj poveznicu",
   "ctx.delete": "Obriši",

@@ -50,6 +50,7 @@
   "toast.dlDone": "Downloads completed",
 
   "list.empty": "No data.",
+  "list.emptyHint": "Try Refresh, adjust filters, or check your device URL.",
   "ctx.open": "Open link",
   "ctx.copy": "Copy link",
   "ctx.delete": "Delete",
